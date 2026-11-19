@@ -35,7 +35,7 @@ status_time = st.sidebar.text_input("Top Clock Time", value="11:40")
 
 st.sidebar.header("4. Ad Tag Settings")
 show_ad_tag = st.sidebar.checkbox("Overlay [ (i) ⋮ ] Ad Tag", value=True)
-tag_corner = st.sidebar.selectbox("Tag Position", ["Top-Left", "Top-Right"])
+tag_corner = st.sidebar.selectbox("Tag Position", ["Top-Left", "Top-Right"], index=0)
 
 uploaded_template = st.sidebar.file_uploader("Optional: Upload Different Reference Screenshot", type=["png", "jpg", "jpeg"])
 
@@ -139,8 +139,6 @@ def build_real_mockup(base_img):
     orig_w, orig_h = base_img.size
     is_exact_300 = "1:1 Exact" in scale_mode
 
-    # In 1:1 Exact 300x250 mode, set frame width to 324px so the 92.8% ad slot equals exact 300x250px!
-    # In Full HD 1080p mode, set frame width to 1080px for crisp high-resolution export.
     target_w = 324 if is_exact_300 else 1080
     scale_factor = target_w / orig_w
     target_h = int(orig_h * scale_factor)
@@ -155,6 +153,7 @@ def build_real_mockup(base_img):
     status_bg = canvas.getpixel((int(W * 0.5), int(H * 0.015)))
     header_bg = canvas.getpixel((int(W * 0.15), int(H * 0.11)))
     card_bg = canvas.getpixel((int(W * 0.5), int(H * 0.17)))
+    page_bg = canvas.getpixel((int(W * 0.015), int(H * 0.60)))
     is_light_card = sum(card_bg) > 380
 
     txt_primary = (28, 28, 30) if is_light_card else (255, 255, 255)
@@ -180,14 +179,18 @@ def build_real_mockup(base_img):
         draw.rectangle([int(W * 0.382), int(H * 0.246), int(W * 0.64), int(H * 0.305)], fill=card_bg)
         draw.text((int(W * 0.385), int(H * 0.250)), amount, fill=txt_primary, font=get_font(H * 0.033, bold=True))
 
-    # 5. Exact 6:5 (300x250) Ad Banner Slot Coordinates
-    ad_x1 = int(W * 0.036)
-    ad_x2 = int(W * 0.964)
+    # 5. Exact Full Ad Slot Bounds (Eliminates any peeking edges from the original Flipkart banner!)
+    ad_x1 = int(W * 0.035)
+    ad_x2 = int(W * 0.965)
+    ad_y1 = int(H * 0.440)
+    ad_y2 = int(H * 0.788)
     ad_w = ad_x2 - ad_x1
-    ad_h = int(ad_w * (250 / 300))
-    ad_y1 = int(H * 0.443)
+    ad_h = ad_y2 - ad_y1
 
     if uploaded_ad is not None:
+        # First erase the entire original ad slot with the exact page background color
+        draw.rectangle([ad_x1 - 2, ad_y1 - 2, ad_x2 + 2, ad_y2 + 2], fill=page_bg)
+
         raw_ad = Image.open(uploaded_ad)
         raw_ad = ImageOps.exif_transpose(raw_ad)
         if raw_ad.mode in ("RGBA", "P"):
