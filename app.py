@@ -143,18 +143,43 @@ def build_real_mockup(base_img):
     scale_factor = target_w / orig_w
     target_h = int(orig_h * scale_factor)
 
-    canvas = base_img.convert("RGB").resize((target_w, target_h), Image.Resampling.LANCZOS)
+    scaled_base = base_img.convert("RGB").resize((target_w, target_h), Image.Resampling.LANCZOS)
     if target_w > orig_w:
-        canvas = canvas.filter(ImageFilter.UnsharpMask(radius=1.0, percent=110, threshold=2))
+        scaled_base = scaled_base.filter(ImageFilter.UnsharpMask(radius=1.0, percent=110, threshold=2))
 
-    W, H = canvas.size
-    draw = ImageDraw.Draw(canvas)
+    W, H = scaled_base.size
 
-    status_bg = canvas.getpixel((int(W * 0.5), int(H * 0.015)))
-    header_bg = canvas.getpixel((int(W * 0.15), int(H * 0.11)))
-    card_bg = canvas.getpixel((int(W * 0.5), int(H * 0.17)))
-    page_bg = canvas.getpixel((int(W * 0.015), int(H * 0.60)))
+    # Sample exact background & UI colors from the real screenshot
+    status_bg = scaled_base.getpixel((int(W * 0.5), int(H * 0.015)))
+    header_bg = scaled_base.getpixel((int(W * 0.15), int(H * 0.11)))
+    card_bg = scaled_base.getpixel((int(W * 0.5), int(H * 0.17)))
+    page_bg = scaled_base.getpixel((int(W * 0.015), int(H * 0.60)))
     is_light_card = sum(card_bg) > 380
+
+    # --- STEP A: CLEANLY REMOVE THE ENTIRE FLIPKART BANNER & REBUILD EXACT 6:5 SLOT ---
+    # In the reference screenshot, the old ad sits between y=0.436*H and y=0.802*H (just above the dots)
+    old_slot_top = int(H * 0.436)
+    old_slot_bot = int(H * 0.802)
+
+    ad_x1 = int(W * 0.036)
+    ad_x2 = int(W * 0.964)
+    ad_w = ad_x2 - ad_x1
+    ad_h = int(round(ad_w * (250 / 300)))  # Exact 300x250 (6:5) aspect ratio!
+
+    top_pad = int(H * 0.008)
+    bot_pad = int(H * 0.012)
+    new_slot_height = top_pad + ad_h + bot_pad
+
+    # Slice top (Header + Card) and bottom (Dots + UPI + Done Bar) cleanly without the Flipkart ad
+    top_section = scaled_base.crop((0, 0, W, old_slot_top))
+    bottom_section = scaled_base.crop((0, old_slot_bot, W, H))
+
+    new_H = top_section.height + new_slot_height + bottom_section.height
+    canvas = Image.new("RGB", (W, new_H), page_bg)
+    canvas.paste(top_section, (0, 0))
+    canvas.paste(bottom_section, (0, top_section.height + new_slot_height))
+
+    draw = ImageDraw.Draw(canvas)
 
     txt_primary = (28, 28, 30) if is_light_card else (255, 255, 255)
     txt_secondary = (102, 104, 110) if is_light_card else (175, 175, 182)
@@ -179,18 +204,10 @@ def build_real_mockup(base_img):
         draw.rectangle([int(W * 0.382), int(H * 0.246), int(W * 0.64), int(H * 0.305)], fill=card_bg)
         draw.text((int(W * 0.385), int(H * 0.250)), amount, fill=txt_primary, font=get_font(H * 0.033, bold=True))
 
-    # 5. Exact Full Ad Slot Bounds (Eliminates any peeking edges from the original Flipkart banner!)
-    ad_x1 = int(W * 0.035)
-    ad_x2 = int(W * 0.965)
-    ad_y1 = int(H * 0.440)
-    ad_y2 = int(H * 0.788)
-    ad_w = ad_x2 - ad_x1
-    ad_h = ad_y2 - ad_y1
+    # --- STEP B: PASTE YOUR 300x250 (6:5) CREATIVE INTO THE CLEANED SLOT ---
+    ad_y1 = top_section.height + top_pad
 
     if uploaded_ad is not None:
-        # First erase the entire original ad slot with the exact page background color
-        draw.rectangle([ad_x1 - 2, ad_y1 - 2, ad_x2 + 2, ad_y2 + 2], fill=page_bg)
-
         raw_ad = Image.open(uploaded_ad)
         raw_ad = ImageOps.exif_transpose(raw_ad)
         if raw_ad.mode in ("RGBA", "P"):
@@ -223,6 +240,14 @@ def build_real_mockup(base_img):
         mask = Image.new("L", (ad_w, ad_h), 0)
         ImageDraw.Draw(mask).rounded_rectangle([0, 0, ad_w, ad_h], radius=int(W * 0.028), fill=255)
         canvas.paste(ad_fitted, (ad_x1, ad_y1), mask)
+    else:
+        # Clean empty 300x250 (6:5) placeholder slot with zero Flipkart banner
+        placeholder = Image.new("RGB", (ad_w, ad_h), "#E5E7EB")
+        pd = ImageDraw.Draw(placeholder)
+        pd.text((ad_w // 2, ad_h // 2), "300 x 250 Ad Slot (6:5)\nUpload Creative in Left Sidebar", fill="#6B7280", font=get_font(H * 0.020, bold=True), anchor="mm", align="center")
+        mask = Image.new("L", (ad_w, ad_h), 0)
+        ImageDraw.Draw(mask).rounded_rectangle([0, 0, ad_w, ad_h], radius=int(W * 0.028), fill=255)
+        canvas.paste(placeholder, (ad_x1, ad_y1), mask)
 
     return canvas
 
