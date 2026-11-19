@@ -21,7 +21,7 @@ scale_mode = st.sidebar.radio(
     index=0
 )
 
-fix_airtel_cta = st.sidebar.checkbox("Vector-Sharpen 'Register now' & 'T&C' (For 300x250 upscaled to HD)", value=False)
+fix_airtel_cta = st.sidebar.checkbox("Vector-Sharpen 'Register now' & 'T&C' (For upscaled 300x250)", value=False)
 
 st.sidebar.header("3. Edit Transaction Details")
 avatar_initials = st.sidebar.text_input("Avatar Initials", value="JL", max_chars=3)
@@ -31,7 +31,7 @@ amount = st.sidebar.text_input("Amount (without ₹ symbol)", value="150")
 date_time_str = st.sidebar.text_input("Transaction Date & Time", value="04:32 pm on 12 Oct 2026")
 
 st.sidebar.header("4. Ad Tag Settings")
-show_info_tag = st.sidebar.checkbox("Show Ad Info 'i' Tag", value=True)
+show_info_tag = st.sidebar.checkbox("Show Ad Tag [ (i) ⋮ ]", value=True)
 tag_position = st.sidebar.selectbox("Tag Corner", ["Top-Left", "Top-Right"])
 
 # --- HELPER FOR GUARANTEED CRISP FONTS ---
@@ -50,17 +50,76 @@ def get_font(size, bold=False):
     except:
         return ImageFont.load_default()
 
+# --- DRAW PHOTOREALISTIC [ (i) ⋮ ] ADCHOICES TAG (4X SUPERSAMPLED FOR ZERO JAGGED EDGES) ---
+def draw_native_ad_tag(base_img, ad_w, ad_h, position="Top-Left"):
+    ss = 4  # 4x supersampling so curves and dots look 100% native
+    tag_w = max(32, int(ad_w * 0.105))
+    tag_h = max(16, int(ad_h * 0.062))
+    margin_x = max(2, int(ad_w * 0.012))
+    margin_y = max(2, int(ad_h * 0.014))
+
+    # Render tag at 4x resolution
+    hi_w, hi_h = tag_w * ss, tag_h * ss
+    tag_hi = Image.new("RGBA", (hi_w + 16, hi_h + 16), (0, 0, 0, 0))
+    td = ImageDraw.Draw(tag_hi)
+
+    # Subtle ambient shadow behind the white tab (just like real Android WebView ad rendering)
+    shadow = Image.new("RGBA", (hi_w + 16, hi_h + 16), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    sd.rounded_rectangle([8, 9, 8 + hi_w, 9 + hi_h], radius=int(hi_h * 0.22), fill=(0, 0, 0, 48))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=3))
+    tag_hi = Image.alpha_composite(tag_hi, shadow)
+    td = ImageDraw.Draw(tag_hi)
+
+    # Crisp white semi-opaque pill tab
+    td.rounded_rectangle(
+        [8, 8, 8 + hi_w, 8 + hi_h],
+        radius=int(hi_h * 0.22),
+        fill=(255, 255, 255, 245)
+    )
+
+    # Left side: Cyan-blue circle with 'i' (#00AEEF)
+    cx = 8 + int(hi_w * 0.34)
+    cy = 8 + (hi_h // 2)
+    r = int(hi_h * 0.34)
+    stroke = max(4, int(hi_h * 0.075))
+    td.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(0, 174, 239, 255), width=stroke)
+
+    # Draw geometric 'i' inside circle (dot + stem) so it's crisp at every pixel size
+    dot_r = max(2, int(r * 0.16))
+    td.ellipse([cx - dot_r, cy - int(r * 0.48) - dot_r, cx + dot_r, cy - int(r * 0.48) + dot_r], fill=(0, 174, 239, 255))
+    stem_w = max(2, int(r * 0.15))
+    td.rectangle([cx - stem_w, cy - int(r * 0.15), cx + stem_w, cy + int(r * 0.48)], fill=(0, 174, 239, 255))
+
+    # Right side: Three vertical dark-grey dots (⋮)
+    dx = 8 + int(hi_w * 0.77)
+    dot_radius = max(2, int(hi_h * 0.068))
+    spacing = int(hi_h * 0.22)
+    for offset in (-spacing, 0, spacing):
+        dy = cy + offset
+        td.ellipse([dx - dot_radius, dy - dot_radius, dx + dot_radius, dy + dot_radius], fill=(75, 80, 88, 255))
+
+    # Downsample 4x -> 1x with LANCZOS anti-aliasing
+    final_tag = tag_hi.resize((tag_w + 4, tag_h + 4), Image.Resampling.LANCZOS)
+
+    ad_rgba = base_img.convert("RGBA")
+    if position == "Top-Left":
+        paste_x, paste_y = margin_x, margin_y
+    else:
+        paste_x, paste_y = ad_w - tag_w - margin_x - 4, margin_y
+
+    ad_rgba.paste(final_tag, (paste_x, paste_y), final_tag)
+    return ad_rgba.convert("RGB")
+
 # --- IMAGE GENERATION FUNCTION ---
 def create_mockup():
     is_exact_300 = "1:1 Exact" in scale_mode
 
     if is_exact_300:
-        # Exact 300x250 ad slot inside a proportional 322x698 mobile frame (ZERO stretching!)
         ad_w, ad_h = 300, 250
-        s = 300 / 504  # Exact scale factor (~0.595)
+        s = 300 / 504
         W, H = 322, 698
     else:
-        # Full HD 1080x2340 frame
         ad_w, ad_h = 1008, 840
         s = 2.0
         W, H = 1080, 2340
@@ -73,7 +132,6 @@ def create_mockup():
     font_md = get_font(20 * s, bold=True)
     font_reg = get_font(18 * s, bold=False)
     font_sm = get_font(15 * s, bold=False)
-    font_info = get_font(12 * s, bold=True)
     font_tag = get_font(11 * s, bold=True)
 
     # 1. Top Green Header Section
@@ -158,7 +216,6 @@ def create_mockup():
             ad_rgb = raw_img.convert("RGB")
 
         if ad_rgb.size == (ad_w, ad_h):
-            # 1:1 Exact pixel copy — zero resampling blur!
             ad_display = ad_rgb.copy()
         else:
             ad_display = ImageOps.fit(ad_rgb, (ad_w, ad_h), method=Image.Resampling.LANCZOS)
@@ -169,49 +226,21 @@ def create_mockup():
         ad_draw = ImageDraw.Draw(ad_display)
         ad_draw.text((ad_w // 2, ad_h // 2), "300 x 250 Ad Slot (6:5)\nUpload Image in Left Sidebar", fill="#666666", font=font_md, anchor="mm", align="center")
 
-    # Optional Vector CTA & T&C Overlay for upscaled 300x250 banners
+    # Optional Vector CTA & T&C Overlay
     if fix_airtel_cta and uploaded_ad is not None:
         ov_cta = ImageDraw.Draw(ad_display)
-        # Crisp white pill button over "Register now" region
         btn_x1, btn_y1 = int(ad_w * 0.048), int(ad_h * 0.552)
         btn_x2, btn_y2 = int(ad_w * 0.258), int(ad_h * 0.632)
         ov_cta.rounded_rectangle([btn_x1, btn_y1, btn_x2, btn_y2], radius=int((btn_y2 - btn_y1) // 2), fill="#FFFFFF")
         cta_font = get_font(int(ad_h * 0.032), bold=True)
         ov_cta.text(((btn_x1 + btn_x2) // 2, (btn_y1 + btn_y2) // 2), "Register now", fill="#D9251D", font=cta_font, anchor="mm")
 
-        # Crisp "T&C Apply*" in bottom-left
         tnc_font = get_font(int(ad_h * 0.022), bold=False)
         ov_cta.text((int(ad_w * 0.052), int(ad_h * 0.955)), "T&C Apply*", fill="#F0F4F8", font=tnc_font, anchor="lm")
 
-    # 4. Authentic Flush Corner AdChoices 'i' Tab
+    # 4. Exact [ (i) ⋮ ] Ad Tag on Top-Left Corner (matching Flipkart screenshot style)
     if show_info_tag:
-        ad_rgba = ad_display.convert("RGBA")
-        overlay = Image.new("RGBA", (ad_w, ad_h), (0, 0, 0, 0))
-        ov_draw = ImageDraw.Draw(overlay)
-
-        tab_w, tab_h = max(16, int(23 * s)), max(15, int(21 * s))
-        r = max(5, int(7 * s))
-        if tag_position == "Top-Left":
-            ov_draw.rounded_rectangle(
-                [0, 0, tab_w, tab_h],
-                radius=max(3, int(5 * s)),
-                corners=(False, False, True, False),
-                fill=(242, 242, 245, 225)
-            )
-            ix, iy = tab_w // 2, tab_h // 2
-        else:
-            ov_draw.rounded_rectangle(
-                [ad_w - tab_w, 0, ad_w, tab_h],
-                radius=max(3, int(5 * s)),
-                corners=(False, False, False, True),
-                fill=(242, 242, 245, 225)
-            )
-            ix, iy = ad_w - (tab_w // 2), tab_h // 2
-
-        ov_draw.ellipse([ix - r, iy - r, ix + r, iy + r], outline=(0, 174, 239, 255), width=max(1, int(1.5 * s)))
-        ov_draw.text((ix, iy), "i", fill=(0, 174, 239, 255), font=font_info, anchor="mm")
-
-        ad_display = Image.alpha_composite(ad_rgba, overlay).convert("RGB")
+        ad_display = draw_native_ad_tag(ad_display, ad_w, ad_h, position=tag_position)
 
     # Apply rounded corners to the Ad Banner
     mask = Image.new("L", (ad_w, ad_h), 0)
