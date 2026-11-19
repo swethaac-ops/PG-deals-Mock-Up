@@ -50,7 +50,7 @@ def get_font(size, bold=False):
     except:
         return ImageFont.load_default()
 
-# --- VECTOR-DRAWN BOLD INDIAN RUPEE (₹) SYMBOL MATCHING REFERENCE ---
+# --- VECTOR-DRAWN BOLD INDIAN RUPEE (₹) SYMBOL ---
 def draw_rupee_symbol(base_img, x, y, height, color=(28, 28, 30)):
     ss = 6
     w = max(10, int(height * 0.68))
@@ -63,27 +63,21 @@ def draw_rupee_symbol(base_img, x, y, height, color=(28, 28, 30)):
     stroke = max(4, int(hh * 0.135))
     col = (*color, 255)
 
-    # Top horizontal bar (full width)
     y_top = int(hh * 0.08)
     d.rectangle([0, y_top, hw - 1, y_top + stroke], fill=col)
 
-    # Second horizontal bar (slightly shorter right end, matching official ₹ glyph)
     y_mid_bar = int(hh * 0.30)
     d.rectangle([0, y_mid_bar, int(hw * 0.88), y_mid_bar + stroke], fill=col)
 
-    # Curved neck from top-left sweeping down-right and back to mid-left
     neck_x_start = int(hw * 0.18)
     neck_right = int(hw * 0.68)
     neck_bot = int(hh * 0.54)
 
-    # Draw smooth arc for the right curve of ₹
     arc_box = [int(hw * 0.05), y_top, neck_right, neck_bot]
     d.arc(arc_box, start=275, end=85, fill=col, width=stroke)
-    # Connect top bar into arc & arc back to left stem
     d.rectangle([neck_x_start, y_top, int(hw * 0.42), y_top + stroke], fill=col)
     d.rectangle([int(hw * 0.06), neck_bot - stroke, int(hw * 0.42), neck_bot], fill=col)
 
-    # Diagonal leg sweeping from mid-left down to bottom-right
     y_leg_start = neck_bot - int(stroke * 0.45)
     y_leg_end = int(hh * 0.94)
     x_leg_start = int(hw * 0.06)
@@ -252,7 +246,6 @@ def create_mockup():
         s = 2.0
         W, H = 1080, 2410
 
-    # Authentic PhonePe Light Theme Colors from reference
     bg_color = "#F4F5F7"
     header_green = "#137A2D"
     card_color = "#FFFFFF"
@@ -282,45 +275,38 @@ def create_mockup():
     draw.rectangle([0, 0, W, status_h], fill="#FFFFFF")
     draw.text((int(18 * s), status_h // 2), status_time, fill="#55575C", font=font_status, anchor="lm")
 
-    # Right status indicators (VoLTE, 5G, Signal, Battery)
     rx = W - int(18 * s)
-    # Battery icon
     bat_w, bat_h = int(11 * s), int(15 * s)
     draw.rounded_rectangle([rx - bat_w, (status_h - bat_h) // 2, rx, (status_h + bat_h) // 2], radius=max(1, int(2 * s)), fill="#55575C")
     draw.rectangle([rx - int(8 * s), (status_h - bat_h) // 2 - int(2 * s), rx - int(3 * s), (status_h - bat_h) // 2], fill="#55575C")
-    # Signal bars
     sig_x = rx - bat_w - int(18 * s)
     for b in range(4):
         bh = int((4 + b * 2.5) * s)
         bx = sig_x + int(b * 3.5 * s)
         by2 = (status_h + bat_h) // 2
         draw.rectangle([bx, by2 - bh, bx + max(1, int(2 * s)), by2], fill="#55575C")
-    # 5G & VoLTE text
     draw.text((sig_x - int(6 * s), status_h // 2), "5G", fill="#55575C", font=font_status_sm, anchor="rm")
     draw.text((sig_x - int(24 * s), status_h // 2), "Vo\nLTE", fill="#55575C", font=get_font(6.5 * s, bold=True), anchor="rm", spacing=0)
 
-    # 2. Top Green Header Section (extends behind upper portion of white card)
+    # 2. Top Green Header Section
     header_top = status_h
     header_bot = int(285 * s)
     draw.rectangle([0, header_top, W, header_bot], fill=header_green)
 
-    # Payment Successful & Date/Time
     draw.text((W // 2, int(84 * s)), "Payment Successful", fill="#FFFFFF", font=font_header, anchor="mm")
     draw.text((W // 2, int(116 * s)), date_time_str, fill="#E3F5E7", font=font_date, anchor="mm")
 
-    # 3. White Transaction Card (Overlapping the green header)
+    # 3. White Transaction Card
     card_x1, card_y1 = int(14 * s), int(152 * s)
     card_x2, card_y2 = W - int(14 * s), int(448 * s)
-    # Subtle card shadow
     draw.rounded_rectangle([card_x1, card_y1 + int(2 * s), card_x2, card_y2 + int(2 * s)], radius=int(16 * s), fill="#E2E4E8")
     draw.rounded_rectangle([card_x1, card_y1, card_x2, card_y2], radius=int(16 * s), fill=card_color)
 
-    # Vibrant Purple Rounded-Square Avatar with Person Outline Icon
+    # Vibrant Purple Squircle Avatar with Person Silhouette
     av_x1, av_y1 = int(38 * s), int(184 * s)
     av_size = int(78 * s)
     draw.rounded_rectangle([av_x1, av_y1, av_x1 + av_size, av_y1 + av_size], radius=int(20 * s), fill=purple_main)
 
-    # White Person Silhouette inside Purple Squircle
     acx = av_x1 + av_size // 2
     head_cy = av_y1 + int(av_size * 0.36)
     head_r = int(av_size * 0.145)
@@ -346,7 +332,7 @@ def create_mockup():
     draw = ImageDraw.Draw(img)
     draw.text((text_x + rupee_w + int(3 * s), amt_y), amount, fill=primary_txt, font=font_amt)
 
-    # "Split Expense" on Right
+    # Split Expense
     split_x, split_y = card_x2 - int(22 * s), amt_y + int(18 * s)
     draw.text((split_x, split_y), "Split Expense", fill=purple_text, font=font_split, anchor="rm")
 
@@ -355,25 +341,21 @@ def create_mockup():
     draw.line([(card_x1, div_y), (card_x2, div_y)], fill=divider_col, width=max(1, int(1.5 * s)))
     draw.line([(W // 2, div_y + int(14 * s)), (W // 2, card_y2 - int(14 * s))], fill=divider_col, width=max(1, int(1.5 * s)))
 
-    # Bottom Card Actions: "View Details" (with receipt icon) & "Share Receipt" (with 3-node share icon)
+    # Bottom Card Actions
     b_y = int(396 * s)
     r_btn = int(24 * s)
     icon_w = max(1, int(1.8 * s))
 
-    # Left: View Details
     b1_x = int(66 * s)
     draw.ellipse([b1_x - r_btn, b_y - r_btn, b1_x + r_btn, b_y + r_btn], fill=icon_circle_bg)
-    # Document/Receipt icon inside circle
     doc_w, doc_h = int(13 * s), int(16 * s)
     draw.rounded_rectangle([b1_x - doc_w // 2, b_y - doc_h // 2, b1_x + doc_w // 2, b_y + doc_h // 2], radius=max(1, int(2 * s)), outline=purple_main, width=icon_w)
     for line_off in (-int(3 * s), 0, int(3 * s)):
         draw.line([(b1_x - int(3 * s), b_y + line_off), (b1_x + int(3 * s), b_y + line_off)], fill=purple_main, width=max(1, int(1.4 * s)))
     draw.text((b1_x + int(34 * s), b_y), "View Details", fill=primary_txt, font=font_action, anchor="lm")
 
-    # Right: Share Receipt
     b2_x = W // 2 + int(42 * s)
     draw.ellipse([b2_x - r_btn, b_y - r_btn, b2_x + r_btn, b_y + r_btn], fill=icon_circle_bg)
-    # 3-node share icon inside circle
     nr = max(2, int(2.4 * s))
     p_left = (b2_x - int(5 * s), b_y)
     p_top = (b2_x + int(4 * s), b_y - int(5 * s))
@@ -453,4 +435,39 @@ def create_mockup():
     draw.rectangle([0, done_top, W, nav_top], fill="#FFFFFF")
     draw.text((W // 2, (done_top + nav_top) // 2), "Done", fill=purple_text, font=font_done, anchor="mm")
 
-    # Android
+    draw.rectangle([0, nav_top, W, H], fill="#F8F9FA")
+    nav_y = (nav_top + H) // 2
+    nav_col = "#71747A"
+    nw = max(1, int(1.8 * s))
+    bx = int(W * 0.21)
+    draw.line([(bx + int(4 * s), nav_y - int(6 * s)), (bx - int(4 * s), nav_y), (bx + int(4 * s), nav_y + int(6 * s))], fill=nav_col, width=nw)
+    hr = int(6 * s)
+    draw.ellipse([W // 2 - hr, nav_y - hr, W // 2 + hr, nav_y + hr], outline=nav_col, width=nw)
+    mx = int(W * 0.79)
+    for dy in (-int(5 * s), 0, int(5 * s)):
+        draw.line([(mx - int(6 * s), nav_y + dy), (mx + int(6 * s), nav_y + dy)], fill=nav_col, width=nw)
+
+    return img
+
+# --- DISPLAY & DOWNLOAD ---
+col1, col2 = st.columns([1.2, 1])
+
+with col1:
+    st.subheader("Live Mockup Preview")
+    final_img = create_mockup()
+    st.image(final_img)
+
+    buf = io.BytesIO()
+    final_img.save(buf, format="PNG", compress_level=0)
+    st.download_button(
+        label="⬇️ Download Lossless Mockup (PNG)",
+        data=buf.getvalue(),
+        file_name="payment_ad_mockup.png",
+        mime="image/png"
+    )
+
+with col2:
+    if uploaded_ad is not None:
+        st.subheader("Original Uploaded Ad (1:1)")
+        raw_preview = ImageOps.exif_transpose(Image.open(uploaded_ad)).convert("RGB")
+        st.image(raw_preview, caption=f"Native size: {raw_preview.width}x{raw_preview.height} px")
