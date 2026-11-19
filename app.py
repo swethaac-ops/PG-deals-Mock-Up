@@ -36,11 +36,23 @@ show_info_tag = st.sidebar.checkbox("Show Ad Tag [ (i) ⋮ ]", value=True)
 tag_position = st.sidebar.selectbox("Tag Corner", ["Top-Left", "Top-Right (Like Flipkart)"])
 
 # --- HELPER FOR GUARANTEED CRISP FONTS ---
-def get_font(size, bold=False):
-    font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-    ]
+def get_font(size, bold=False, italic=False):
+    if bold and italic:
+        font_paths = [
+            "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ]
+    elif bold:
+        font_paths = [
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ]
+    else:
+        font_paths = [
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ]
     for path in font_paths:
         try:
             return ImageFont.truetype(path, max(6, int(size)))
@@ -51,121 +63,61 @@ def get_font(size, bold=False):
     except:
         return ImageFont.load_default()
 
-# --- DRAW AUTHENTIC "POWERED BY UPI" LOGO WITH ORANGE & GREEN TRIANGLES ---
+# --- COMPACT AUTHENTIC "POWERED BY UPI" LOGO MATCHING REFERENCE ---
 def draw_upi_logo(base_img, center_x, top_y, scale_factor, is_dark=True):
     ss = 4
-    w = max(90, int(115 * scale_factor))
-    h = max(42, int(52 * scale_factor))
+    # Exact compact proportions matching PhonePe footer reference
+    w = max(58, int(74 * scale_factor))
+    h = max(28, int(36 * scale_factor))
     hw, hh = w * ss, h * ss
 
     logo_hi = Image.new("RGBA", (hw, hh), (0, 0, 0, 0))
     d = ImageDraw.Draw(logo_hi)
 
-    text_grey = (165, 165, 172, 255) if is_dark else (112, 115, 120, 255)
-    sub_grey = (145, 145, 152, 255) if is_dark else (125, 128, 134, 255)
+    main_grey = (158, 160, 166, 255) if is_dark else (112, 114, 118, 255)
+    sub_grey = (138, 140, 146, 255) if is_dark else (122, 124, 128, 255)
 
-    # 1. "POWERED BY" top caption
-    f_pow = get_font(int(hh * 0.14), bold=True)
-    d.text((hw * 0.46, hh * 0.12), "POWERED BY", fill=sub_grey, font=f_pow, anchor="mm")
+    # 1. "POWERED BY" top caption (bold, slightly tighter & closer to UPI)
+    f_pow = get_font(int(hh * 0.145), bold=True, italic=False)
+    d.text((hw * 0.44, hh * 0.14), "POWERED BY", fill=sub_grey, font=f_pow, anchor="mm")
 
-    # 2. Stylized Slanted Block "UPI" Letters
-    # Coordinates for slanted italic U, P, I
-    y_top = hh * 0.25
-    y_bot = hh * 0.72
-    slant = hh * 0.11  # Forward italic lean
-    thick = hh * 0.105
+    # 2. Condensed Bold-Italic "UPI" typography
+    f_upi = get_font(int(hh * 0.56), bold=True, italic=True)
+    upi_x = hw * 0.40
+    upi_y = hh * 0.49
+    d.text((upi_x, upi_y), "UPI", fill=main_grey, font=f_upi, anchor="mm")
 
-    # Letter 'U'
-    ux = hw * 0.12
-    uw = hw * 0.17
-    # Left vertical bar of U
-    d.polygon([
-        (ux + slant, y_top),
-        (ux + slant + thick, y_top),
-        (ux + thick, y_bot),
-        (ux, y_bot)
-    ], fill=text_grey)
-    # Right vertical bar of U
-    d.polygon([
-        (ux + uw + slant, y_top),
-        (ux + uw + slant + thick, y_top),
-        (ux + uw + thick, y_bot),
-        (ux + uw, y_bot)
-    ], fill=text_grey)
-    # Bottom bar of U
-    d.polygon([
-        (ux, y_bot - thick * 0.85),
-        (ux + uw + thick, y_bot - thick * 0.85),
-        (ux + uw + thick, y_bot),
-        (ux, y_bot)
-    ], fill=text_grey)
+    # Measure rendered "UPI" width to place triangles flush against the 'I'
+    bbox = d.textbbox((upi_x, upi_y), "UPI", font=f_upi, anchor="mm")
+    tri_x = bbox[2] + (hw * 0.015)
+    y_top = bbox[1] + (hh * 0.03)
+    y_bot = bbox[3] - (hh * 0.02)
+    tri_w = hw * 0.12
+    slant = (y_bot - y_top) * 0.22
 
-    # Letter 'P'
-    px = hw * 0.41
-    pw = hw * 0.17
-    y_mid = (y_top + y_bot) * 0.52
-    # Vertical stem of P
+    # Overlapping Green (back) and Saffron-Orange (front) chevrons
     d.polygon([
-        (px + slant, y_top),
-        (px + slant + thick, y_top),
-        (px + thick, y_bot),
-        (px, y_bot)
-    ], fill=text_grey)
-    # Top bar of P
-    d.polygon([
-        (px + slant, y_top),
-        (px + pw + slant, y_top),
-        (px + pw + slant - thick * 0.15, y_top + thick * 0.85),
-        (px + slant, y_top + thick * 0.85)
-    ], fill=text_grey)
-    # Right vertical loop of P
-    d.polygon([
-        (px + pw + slant - thick * 0.9, y_top),
-        (px + pw + slant, y_top),
-        (px + pw + slant * 0.45, y_mid),
-        (px + pw + slant * 0.45 - thick * 0.9, y_mid)
-    ], fill=text_grey)
-    # Middle bar of P
-    d.polygon([
-        (px + slant * 0.5, y_mid - thick * 0.8),
-        (px + pw + slant * 0.45, y_mid - thick * 0.8),
-        (px + pw + slant * 0.42, y_mid),
-        (px + slant * 0.45, y_mid)
-    ], fill=text_grey)
-
-    # Letter 'I'
-    ix = hw * 0.68
-    d.polygon([
-        (ix + slant, y_top),
-        (ix + slant + thick, y_top),
-        (ix + thick, y_bot),
-        (ix, y_bot)
-    ], fill=text_grey)
-
-    # 3. Overlapping Green (back) and Saffron-Orange (front) Right-Pointing Triangles
-    tri_x = hw * 0.78
-    tri_w = hw * 0.13
-    # Green triangle (slightly behind & to the right)
-    d.polygon([
-        (tri_x + tri_w * 0.35 + slant * 0.6, y_top),
-        (tri_x + tri_w * 1.35, (y_top + y_bot) * 0.5),
-        (tri_x + tri_w * 0.35, y_bot)
+        (tri_x + tri_w * 0.36 + slant, y_top),
+        (tri_x + tri_w * 1.32, (y_top + y_bot) * 0.5),
+        (tri_x + tri_w * 0.36, y_bot)
     ], fill=(19, 136, 8, 255))
 
-    # Saffron-Orange triangle (in front)
     d.polygon([
-        (tri_x + slant * 0.6, y_top),
-        (tri_x + tri_w, (y_top + y_bot) * 0.5),
+        (tri_x + slant, y_top),
+        (tri_x + tri_w * 0.96, (y_top + y_bot) * 0.5),
         (tri_x, y_bot)
     ], fill=(244, 121, 32, 255))
 
-    # 4. "UNIFIED PAYMENTS INTERFACE" bottom caption
-    f_sub = get_font(int(hh * 0.088), bold=True)
-    d.text((hw * 0.49, hh * 0.84), "UNIFIED PAYMENTS INTERFACE", fill=sub_grey, font=f_sub, anchor="mm")
+    # 3. "UNIFIED PAYMENTS INTERFACE" bottom caption (bold italic, compact)
+    f_sub = get_font(int(hh * 0.092), bold=True, italic=True)
+    d.text((hw * 0.48, hh * 0.84), "UNIFIED PAYMENTS INTERFACE", fill=sub_grey, font=f_sub, anchor="mm")
 
-    final_logo = logo_hi.resize((w, h), Image.Resampling.LANCZOS)
+    # Slightly condense horizontally (0.92x) for authentic NPCI UPI wordmark proportions
+    condensed_w = int(w * 0.92)
+    final_logo = logo_hi.resize((condensed_w, h), Image.Resampling.LANCZOS)
+
     base_rgba = base_img.convert("RGBA")
-    base_rgba.paste(final_logo, (int(center_x - w // 2), int(top_y)), final_logo)
+    base_rgba.paste(final_logo, (int(center_x - condensed_w // 2), int(top_y)), final_logo)
     return base_rgba.convert("RGB")
 
 # --- EXACT FLUSH GOOGLE/FLIPKART ADCHOICES CORNER TAB (4X SUPERSAMPLED) ---
@@ -371,7 +323,7 @@ def create_mockup():
     mask_draw.rounded_rectangle([0, 0, ad_w, ad_h], radius=max(6, int(10 * s)), fill=255)
     img.paste(ad_display, (ad_x, ad_y), mask)
 
-    # 5. Carousel Dots & Official "POWERED BY UPI" Logo
+    # 5. Carousel Dots & Compact Official "POWERED BY UPI" Logo
     dot_y = ad_y + ad_h + int(22 * s)
     start_dot_x = (W // 2) - int(55 * s)
     for i in range(8):
@@ -382,7 +334,7 @@ def create_mockup():
             draw.ellipse([start_dot_x, dot_y - int(4 * s), start_dot_x + int(8 * s), dot_y + int(4 * s)], fill=dot_inactive)
             start_dot_x += int(16 * s)
 
-    img = draw_upi_logo(img, center_x=W // 2, top_y=dot_y + int(24 * s), scale_factor=s, is_dark=is_dark)
+    img = draw_upi_logo(img, center_x=W // 2, top_y=dot_y + int(30 * s), scale_factor=s, is_dark=is_dark)
     draw = ImageDraw.Draw(img)
 
     # Bottom DONE Bar
