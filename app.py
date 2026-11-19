@@ -36,23 +36,11 @@ show_info_tag = st.sidebar.checkbox("Show Ad Tag [ (i) ⋮ ]", value=True)
 tag_position = st.sidebar.selectbox("Tag Corner", ["Top-Left", "Top-Right (Like Flipkart)"])
 
 # --- HELPER FOR GUARANTEED CRISP FONTS ---
-def get_font(size, bold=False, italic=False):
-    if bold and italic:
-        font_paths = [
-            "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        ]
-    elif bold:
-        font_paths = [
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        ]
-    else:
-        font_paths = [
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
+def get_font(size, bold=False):
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ]
     for path in font_paths:
         try:
             return ImageFont.truetype(path, max(6, int(size)))
@@ -63,61 +51,102 @@ def get_font(size, bold=False, italic=False):
     except:
         return ImageFont.load_default()
 
-# --- COMPACT AUTHENTIC "POWERED BY UPI" LOGO MATCHING REFERENCE ---
+# --- VECTOR-ACCURATE OFFICIAL "POWERED BY UPI" MARK (FONT-INDEPENDENT) ---
 def draw_upi_logo(base_img, center_x, top_y, scale_factor, is_dark=True):
-    ss = 4
-    # Exact compact proportions matching PhonePe footer reference
-    w = max(58, int(74 * scale_factor))
-    h = max(28, int(36 * scale_factor))
+    ss = 6  # 6x supersampling for razor-sharp edges at small sizes
+    w = max(62, int(78 * scale_factor))
+    h = max(30, int(38 * scale_factor))
     hw, hh = w * ss, h * ss
 
     logo_hi = Image.new("RGBA", (hw, hh), (0, 0, 0, 0))
     d = ImageDraw.Draw(logo_hi)
 
-    main_grey = (158, 160, 166, 255) if is_dark else (112, 114, 118, 255)
-    sub_grey = (138, 140, 146, 255) if is_dark else (122, 124, 128, 255)
+    main_grey = (165, 168, 174, 255) if is_dark else (112, 115, 120, 255)
+    sub_grey = (142, 145, 152, 255) if is_dark else (124, 127, 132, 255)
 
-    # 1. "POWERED BY" top caption (bold, slightly tighter & closer to UPI)
-    f_pow = get_font(int(hh * 0.145), bold=True, italic=False)
-    d.text((hw * 0.44, hh * 0.14), "POWERED BY", fill=sub_grey, font=f_pow, anchor="mm")
+    # 1. "POWERED BY" top caption
+    f_pow = get_font(int(hh * 0.145), bold=True)
+    d.text((hw * 0.45, hh * 0.13), "POWERED BY", fill=sub_grey, font=f_pow, anchor="mm")
 
-    # 2. Condensed Bold-Italic "UPI" typography
-    f_upi = get_font(int(hh * 0.56), bold=True, italic=True)
-    upi_x = hw * 0.40
-    upi_y = hh * 0.49
-    d.text((upi_x, upi_y), "UPI", fill=main_grey, font=f_upi, anchor="mm")
+    # 2. Draw upright rounded-block "UPI" on a temporary layer, then apply authentic italic shear
+    upi_layer = Image.new("RGBA", (hw, hh), (0, 0, 0, 0))
+    ud = ImageDraw.Draw(upi_layer)
 
-    # Measure rendered "UPI" width to place triangles flush against the 'I'
-    bbox = d.textbbox((upi_x, upi_y), "UPI", font=f_upi, anchor="mm")
-    tri_x = bbox[2] + (hw * 0.015)
-    y_top = bbox[1] + (hh * 0.03)
-    y_bot = bbox[3] - (hh * 0.02)
-    tri_w = hw * 0.12
-    slant = (y_bot - y_top) * 0.22
+    y1 = int(hh * 0.25)
+    y2 = int(hh * 0.71)
+    letter_h = y2 - y1
+    stroke = max(4, int(letter_h * 0.23))
+    rad = max(2, int(stroke * 0.35))
 
-    # Overlapping Green (back) and Saffron-Orange (front) chevrons
+    # Letter 'U' (compact, rounded outer bottom corners)
+    ux1 = int(hw * 0.14)
+    ux2 = int(hw * 0.35)
+    ud.rounded_rectangle([ux1, y1, ux1 + stroke, y2], radius=rad, fill=main_grey)
+    ud.rounded_rectangle([ux2 - stroke, y1, ux2, y2], radius=rad, fill=main_grey)
+    ud.rounded_rectangle([ux1, y2 - stroke, ux2, y2], radius=rad, fill=main_grey)
+
+    # Letter 'P' (compact bowl matching NPCI mark)
+    px1 = int(hw * 0.40)
+    px2 = int(hw * 0.60)
+    p_mid = y1 + int(letter_h * 0.56)
+    ud.rounded_rectangle([px1, y1, px1 + stroke, y2], radius=rad, fill=main_grey)
+    ud.rounded_rectangle([px1, y1, px2, y1 + stroke], radius=rad, fill=main_grey)
+    ud.rounded_rectangle([px2 - stroke, y1, px2, p_mid], radius=rad, fill=main_grey)
+    ud.rounded_rectangle([px1, p_mid - stroke, px2, p_mid], radius=rad, fill=main_grey)
+
+    # Letter 'I'
+    ix1 = int(hw * 0.65)
+    ud.rounded_rectangle([ix1, y1, ix1 + stroke, y2], radius=rad, fill=main_grey)
+
+    # Apply 16-degree forward italic slant to UPI letters
+    shear = 0.28
+    upi_slanted = upi_layer.transform(
+        (hw, hh),
+        Image.Transform.AFFINE,
+        (1, shear, -shear * (y1 + y2) * 0.5, 0, 1, 0),
+        resample=Image.Resampling.BICUBIC
+    )
+    logo_hi = Image.alpha_composite(logo_hi, upi_slanted)
+    d = ImageDraw.Draw(logo_hi)
+
+    # 3. Signature Overlapping Green & Saffron-Orange Triangles next to 'I'
+    tri_base_x = ix1 + stroke + int(hw * 0.025)
+    tri_w = int(hw * 0.125)
+    top_shift = int(letter_h * shear * 0.5)
+    bot_shift = -top_shift
+
+    # Back Green Triangle (#138808)
+    g_shift = int(tri_w * 0.38)
     d.polygon([
-        (tri_x + tri_w * 0.36 + slant, y_top),
-        (tri_x + tri_w * 1.32, (y_top + y_bot) * 0.5),
-        (tri_x + tri_w * 0.36, y_bot)
+        (tri_base_x + g_shift + top_shift, y1),
+        (tri_base_x + g_shift + tri_w, (y1 + y2) // 2),
+        (tri_base_x + g_shift + bot_shift, y2)
     ], fill=(19, 136, 8, 255))
 
+    # Front Saffron-Orange Triangle (#F47920)
     d.polygon([
-        (tri_x + slant, y_top),
-        (tri_x + tri_w * 0.96, (y_top + y_bot) * 0.5),
-        (tri_x, y_bot)
+        (tri_base_x + top_shift, y1),
+        (tri_base_x + tri_w, (y1 + y2) // 2),
+        (tri_base_x + bot_shift, y2)
     ], fill=(244, 121, 32, 255))
 
-    # 3. "UNIFIED PAYMENTS INTERFACE" bottom caption (bold italic, compact)
-    f_sub = get_font(int(hh * 0.092), bold=True, italic=True)
-    d.text((hw * 0.48, hh * 0.84), "UNIFIED PAYMENTS INTERFACE", fill=sub_grey, font=f_sub, anchor="mm")
+    # 4. "UNIFIED PAYMENTS INTERFACE" bottom caption (slightly sheared to match reference)
+    sub_layer = Image.new("RGBA", (hw, hh), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(sub_layer)
+    f_sub = get_font(int(hh * 0.088), bold=True)
+    sub_y = int(hh * 0.84)
+    sd.text((hw * 0.50, sub_y), "UNIFIED PAYMENTS INTERFACE", fill=sub_grey, font=f_sub, anchor="mm")
+    sub_slanted = sub_layer.transform(
+        (hw, hh),
+        Image.Transform.AFFINE,
+        (1, 0.22, -0.22 * sub_y, 0, 1, 0),
+        resample=Image.Resampling.BICUBIC
+    )
+    logo_hi = Image.alpha_composite(logo_hi, sub_slanted)
 
-    # Slightly condense horizontally (0.92x) for authentic NPCI UPI wordmark proportions
-    condensed_w = int(w * 0.92)
-    final_logo = logo_hi.resize((condensed_w, h), Image.Resampling.LANCZOS)
-
+    final_logo = logo_hi.resize((w, h), Image.Resampling.LANCZOS)
     base_rgba = base_img.convert("RGBA")
-    base_rgba.paste(final_logo, (int(center_x - condensed_w // 2), int(top_y)), final_logo)
+    base_rgba.paste(final_logo, (int(center_x - w // 2), int(top_y)), final_logo)
     return base_rgba.convert("RGB")
 
 # --- EXACT FLUSH GOOGLE/FLIPKART ADCHOICES CORNER TAB (4X SUPERSAMPLED) ---
@@ -323,7 +352,7 @@ def create_mockup():
     mask_draw.rounded_rectangle([0, 0, ad_w, ad_h], radius=max(6, int(10 * s)), fill=255)
     img.paste(ad_display, (ad_x, ad_y), mask)
 
-    # 5. Carousel Dots & Compact Official "POWERED BY UPI" Logo
+    # 5. Carousel Dots & Vector-Accurate Official "POWERED BY UPI" Logo
     dot_y = ad_y + ad_h + int(22 * s)
     start_dot_x = (W // 2) - int(55 * s)
     for i in range(8):
@@ -334,7 +363,7 @@ def create_mockup():
             draw.ellipse([start_dot_x, dot_y - int(4 * s), start_dot_x + int(8 * s), dot_y + int(4 * s)], fill=dot_inactive)
             start_dot_x += int(16 * s)
 
-    img = draw_upi_logo(img, center_x=W // 2, top_y=dot_y + int(30 * s), scale_factor=s, is_dark=is_dark)
+    img = draw_upi_logo(img, center_x=W // 2, top_y=dot_y + int(28 * s), scale_factor=s, is_dark=is_dark)
     draw = ImageDraw.Draw(img)
 
     # Bottom DONE Bar
