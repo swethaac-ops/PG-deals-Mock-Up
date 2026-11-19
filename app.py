@@ -1,18 +1,31 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
 import io
 import os
+import glob
 
 st.set_page_config(page_title="Real UI Ad Mockup Generator", layout="wide")
 
 st.title("📱 Real-Template Ad Placement Mockup Tool")
-st.write("Composites your 300x250 creative directly onto the real app screenshot so icons, fonts, and UPI branding remain 100% authentic.")
+st.write("Composites your 300x250 creative directly onto the real app screenshot with full HD and sharpness controls.")
 
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("1. Upload Ad Creative (300x250 / 6:5)")
 uploaded_ad = st.sidebar.file_uploader("Upload Ad Banner", type=["png", "jpg", "jpeg", "webp"])
 
-st.sidebar.header("2. Edit Transaction Details")
+st.sidebar.header("2. HD & Clarity Controls")
+scale_mode = st.sidebar.radio(
+    "Output Resolution Mode",
+    [
+        "Full HD 1080p (Crisp High-Res Export)",
+        "1:1 Exact 300x250 Slot (Zero Banner Stretch)"
+    ],
+    index=0
+)
+banner_sharpness = st.sidebar.slider("Banner & Fine-Text Sharpness", min_value=0, max_value=250, value=140, step=10)
+fix_airtel_cta = st.sidebar.checkbox("Vector-Sharpen 'Register now' & 'T&C' (For upscaled 300x250)", value=False)
+
+st.sidebar.header("3. Edit Transaction Details")
 edit_text = st.sidebar.checkbox("Customize Name, Amount & Date", value=True)
 recipient_name = st.sidebar.text_input("Recipient Name", value="Ramana")
 masked_phone = st.sidebar.text_input("Phone / UPI ID", value="+91 ••••• •1592")
@@ -20,27 +33,71 @@ amount = st.sidebar.text_input("Amount (digits only)", value="1")
 date_time_str = st.sidebar.text_input("Date & Time", value="05 October 2026 at 11:40 AM")
 status_time = st.sidebar.text_input("Top Clock Time", value="11:40")
 
-st.sidebar.header("3. Ad Tag Settings")
+st.sidebar.header("4. Ad Tag Settings")
 show_ad_tag = st.sidebar.checkbox("Overlay [ (i) ⋮ ] Ad Tag", value=True)
 tag_corner = st.sidebar.selectbox("Tag Position", ["Top-Left", "Top-Right"])
 
-# Optional fallback if user uploads template directly in app instead of GitHub
 uploaded_template = st.sidebar.file_uploader("Optional: Upload Different Reference Screenshot", type=["png", "jpg", "jpeg"])
 
+# --- GUARANTEED SCALABLE FONT LOADER ---
 def get_font(size, bold=False):
-    paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    px = max(10, int(size))
+    search_patterns = [
+        "/usr/share/fonts/**/*Bold*.ttf" if bold else "/usr/share/fonts/**/*Regular*.ttf",
+        "/usr/share/fonts/**/*.ttf",
     ]
-    for p in paths:
-        if os.path.exists(p):
-            return ImageFont.truetype(p, max(8, int(size)))
-    return ImageFont.load_default()
+    for pattern in search_patterns:
+        matches = sorted(glob.glob(pattern, recursive=True))
+        for m in matches:
+            if bold and "Bold" not in os.path.basename(m):
+                continue
+            try:
+                return ImageFont.truetype(m, px)
+            except Exception:
+                continue
+    try:
+        return ImageFont.load_default(size=px)
+    except TypeError:
+        return ImageFont.load_default()
 
+# --- MULTI-STEP FINE-TEXT UPSCALER ---
+def crisp_fit_banner(raw_rgb, target_w, target_h, clarity_amount):
+    src_w, src_h = raw_rgb.size
+    target_ratio = target_w / target_h
+    src_ratio = src_w / src_h
+
+    if abs(src_ratio - target_ratio) > 0.01:
+        cropped = ImageOps.fit(
+            raw_rgb,
+            (src_w, int(src_w / target_ratio)) if src_ratio < target_ratio else (int(src_h * target_ratio), src_h),
+            method=Image.Resampling.LANCZOS
+        )
+    else:
+        cropped = raw_rgb
+
+    if cropped.size == (target_w, target_h):
+        final_banner = cropped.copy()
+    else:
+        curr = cropped
+        while curr.width * 1.5 < target_w:
+            next_w = int(curr.width * 1.4)
+            next_h = int(curr.height * 1.4)
+            curr = curr.resize((next_w, next_h), Image.Resampling.BICUBIC)
+            if clarity_amount > 0:
+                curr = curr.filter(ImageFilter.UnsharpMask(radius=0.8, percent=int(clarity_amount * 0.45), threshold=1))
+        final_banner = curr.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+    if clarity_amount > 0:
+        final_banner = final_banner.filter(
+            ImageFilter.UnsharpMask(radius=0.75, percent=clarity_amount, threshold=1)
+        )
+    return final_banner
+
+# --- EXACT FLUSH GOOGLE/FLIPKART ADCHOICES CORNER TAB ---
 def draw_authentic_ad_tag(banner_img, bw, bh, corner="Top-Left"):
     ss = 4
-    tw = max(28, int(bw * 0.086))
-    th = max(15, int(bh * 0.054))
+    tw = max(28, int(bw * 0.084))
+    th = max(15, int(bh * 0.052))
     hi_w, hi_h = tw * ss, th * ss
 
     tag = Image.new("RGBA", (hi_w, hi_h), (0, 0, 0, 0))
@@ -79,11 +136,22 @@ def draw_authentic_ad_tag(banner_img, bw, bh, corner="Top-Left"):
     return out.convert("RGB")
 
 def build_real_mockup(base_img):
-    W, H = base_img.size
-    canvas = base_img.copy().convert("RGB")
+    orig_w, orig_h = base_img.size
+    is_exact_300 = "1:1 Exact" in scale_mode
+
+    # In 1:1 Exact 300x250 mode, set frame width to 324px so the 92.8% ad slot equals exact 300x250px!
+    # In Full HD 1080p mode, set frame width to 1080px for crisp high-resolution export.
+    target_w = 324 if is_exact_300 else 1080
+    scale_factor = target_w / orig_w
+    target_h = int(orig_h * scale_factor)
+
+    canvas = base_img.convert("RGB").resize((target_w, target_h), Image.Resampling.LANCZOS)
+    if target_w > orig_w:
+        canvas = canvas.filter(ImageFilter.UnsharpMask(radius=1.0, percent=110, threshold=2))
+
+    W, H = canvas.size
     draw = ImageDraw.Draw(canvas)
 
-    # Sample exact colors directly from the real screenshot so patches are 100% invisible
     status_bg = canvas.getpixel((int(W * 0.5), int(H * 0.015)))
     header_bg = canvas.getpixel((int(W * 0.15), int(H * 0.11)))
     card_bg = canvas.getpixel((int(W * 0.5), int(H * 0.17)))
@@ -95,47 +163,66 @@ def build_real_mockup(base_img):
     txt_status = (85, 87, 92) if sum(status_bg) > 380 else (240, 240, 240)
 
     if edit_text:
-        # 1. Cleanly patch & update Top Clock
-        draw.rectangle([int(W * 0.04), int(H * 0.012), int(W * 0.15), int(H * 0.036)], fill=status_bg)
-        draw.text((int(W * 0.055), int(H * 0.024)), status_time, fill=txt_status, font=get_font(H * 0.015, bold=True), anchor="lm")
+        # 1. Top Clock
+        draw.rectangle([int(W * 0.04), int(H * 0.010), int(W * 0.155), int(H * 0.036)], fill=status_bg)
+        draw.text((int(W * 0.052), int(H * 0.023)), status_time, fill=txt_status, font=get_font(H * 0.015, bold=True), anchor="lm")
 
-        # 2. Cleanly patch & update Date/Time under "Payment Successful"
+        # 2. Date/Time under "Payment Successful"
         draw.rectangle([int(W * 0.15), int(H * 0.092), int(W * 0.85), int(H * 0.125)], fill=header_bg)
-        draw.text((W // 2, int(H * 0.108)), date_time_str, fill=txt_date, font=get_font(H * 0.017, bold=False), anchor="mm")
+        draw.text((W // 2, int(H * 0.108)), date_time_str, fill=txt_date, font=get_font(H * 0.0175, bold=False), anchor="mm")
 
-        # 3. Cleanly patch & update Recipient Name, Phone, and Amount (keeping original ₹ symbol intact!)
-        # Patch Name & Phone area
+        # 3. Recipient Name & Phone
         draw.rectangle([int(W * 0.31), int(H * 0.172), int(W * 0.92), int(H * 0.242)], fill=card_bg)
-        draw.text((int(W * 0.345), int(H * 0.180)), recipient_name, fill=txt_primary, font=get_font(H * 0.024, bold=True))
-        draw.text((int(W * 0.345), int(H * 0.215)), masked_phone, fill=txt_secondary, font=get_font(H * 0.018, bold=False))
+        draw.text((int(W * 0.345), int(H * 0.178)), recipient_name, fill=txt_primary, font=get_font(H * 0.0245, bold=True))
+        draw.text((int(W * 0.345), int(H * 0.214)), masked_phone, fill=txt_secondary, font=get_font(H * 0.0185, bold=False))
 
-        # Keep the authentic ₹ glyph at x=0.345..0.382 untouched, only replace the digits to its right!
-        draw.rectangle([int(W * 0.382), int(H * 0.248), int(W * 0.64), int(H * 0.305)], fill=card_bg)
-        draw.text((int(W * 0.384), int(H * 0.252)), amount, fill=txt_primary, font=get_font(H * 0.032, bold=True))
+        # 4. Amount digits next to the authentic ₹ glyph
+        draw.rectangle([int(W * 0.382), int(H * 0.246), int(W * 0.64), int(H * 0.305)], fill=card_bg)
+        draw.text((int(W * 0.385), int(H * 0.250)), amount, fill=txt_primary, font=get_font(H * 0.033, bold=True))
 
-    # 4. Exact 6:5 (300x250) Ad Banner Slot Coordinates matching the real screenshot
+    # 5. Exact 6:5 (300x250) Ad Banner Slot Coordinates
     ad_x1 = int(W * 0.036)
     ad_x2 = int(W * 0.964)
     ad_w = ad_x2 - ad_x1
-    ad_h = int(ad_w * (250 / 300))  # Exact 6:5 ratio
+    ad_h = int(ad_w * (250 / 300))
     ad_y1 = int(H * 0.443)
-    ad_y2 = ad_y1 + ad_h
 
     if uploaded_ad is not None:
-        raw_ad = ImageOps.exif_transpose(Image.open(uploaded_ad)).convert("RGB")
-        ad_fitted = ImageOps.fit(raw_ad, (ad_w, ad_h), method=Image.Resampling.LANCZOS)
+        raw_ad = Image.open(uploaded_ad)
+        raw_ad = ImageOps.exif_transpose(raw_ad)
+        if raw_ad.mode in ("RGBA", "P"):
+            bg = Image.new("RGB", raw_ad.size, (255, 255, 255))
+            raw_ad = raw_ad.convert("RGBA")
+            bg.paste(raw_ad, mask=raw_ad.split()[3])
+            ad_rgb = bg
+        else:
+            ad_rgb = raw_ad.convert("RGB")
+
+        ad_fitted = crisp_fit_banner(ad_rgb, ad_w, ad_h, banner_sharpness)
+
+        if fix_airtel_cta:
+            ov_cta = ImageDraw.Draw(ad_fitted)
+            btn_x1 = int(ad_w * 0.048)
+            btn_y1 = int(ad_h * 0.552)
+            btn_x2 = int(ad_w * 0.258)
+            btn_y2 = int(ad_h * 0.632)
+            btn_r = int((btn_y2 - btn_y1) // 2)
+            ov_cta.rounded_rectangle([btn_x1, btn_y1, btn_x2, btn_y2], radius=btn_r, fill="#FFFFFF")
+            cta_font = get_font(int(ad_h * 0.032), bold=True)
+            ov_cta.text(((btn_x1 + btn_x2) // 2, (btn_y1 + btn_y2) // 2), "Register now", fill="#D9251D", font=cta_font, anchor="mm")
+
+            tnc_font = get_font(int(ad_h * 0.022), bold=False)
+            ov_cta.text((int(ad_w * 0.052), int(ad_h * 0.955)), "T&C Apply*", fill="#F0F4F8", font=tnc_font, anchor="lm")
 
         if show_ad_tag:
             ad_fitted = draw_authentic_ad_tag(ad_fitted, ad_w, ad_h, corner=tag_corner)
 
-        # Rounded corner mask matching the native PhonePe ad container
         mask = Image.new("L", (ad_w, ad_h), 0)
         ImageDraw.Draw(mask).rounded_rectangle([0, 0, ad_w, ad_h], radius=int(W * 0.028), fill=255)
         canvas.paste(ad_fitted, (ad_x1, ad_y1), mask)
 
     return canvas
 
-# Load template from GitHub or sidebar upload
 template_img = None
 if uploaded_template is not None:
     template_img = ImageOps.exif_transpose(Image.open(uploaded_template))
@@ -145,20 +232,26 @@ elif os.path.exists("template.png"):
     template_img = ImageOps.exif_transpose(Image.open("template.png"))
 
 if template_img is None:
-    st.warning("⚠️ Please upload `template.jpg` (your reference screenshot) to your GitHub repo or use the 'Upload Different Reference Screenshot' button in the left sidebar.")
+    st.warning("⚠️ Please upload `template.jpg` to your GitHub repo or use the sidebar uploader.")
 else:
     col1, col2 = st.columns([1.2, 1])
     with col1:
-        st.subheader("Authentic Mockup Output")
+        st.subheader(f"Authentic Mockup Output ({scale_mode.split(' (')[0]})")
         result = build_real_mockup(template_img)
-        st.image(result, width=380)
+        st.image(result, use_container_width=True)
 
         buf = io.BytesIO()
-        result.save(buf, format="PNG")
-        st.download_button("⬇️ Download Authentic Mockup (PNG)", data=buf.getvalue(), file_name="authentic_ad_mockup.png", mime="image/png")
+        result.save(buf, format="PNG", compress_level=0)
+        st.download_button(
+            "⬇️ Download Lossless Mockup (PNG)",
+            data=buf.getvalue(),
+            file_name="authentic_ad_mockup.png",
+            mime="image/png"
+        )
 
     with col2:
         if uploaded_ad is not None:
             st.subheader("Exact 300x250 Ad Creative (6:5)")
             raw_ad = ImageOps.exif_transpose(Image.open(uploaded_ad)).convert("RGB")
-            st.image(ImageOps.fit(raw_ad, (300, 250), method=Image.Resampling.LANCZOS), caption="300x250 px asset")
+            exact_300 = crisp_fit_banner(raw_ad, 300, 250, banner_sharpness)
+            st.image(exact_300, caption="300x250 px asset")
