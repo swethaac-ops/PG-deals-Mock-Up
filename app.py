@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
 import io
 
 st.set_page_config(page_title="Ad Placement Mockup Generator", layout="wide")
@@ -10,6 +10,7 @@ st.write("Customize the transaction details and upload a banner to preview it in
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("1. Upload Ad Creative")
 uploaded_ad = st.sidebar.file_uploader("Upload Ad Image (6:5 / 300x250 ratio)", type=["png", "jpg", "jpeg", "webp"])
+sharpness_boost = st.sidebar.slider("Banner Sharpness Boost", min_value=0, max_value=200, value=110, step=10)
 
 st.sidebar.header("2. Edit Transaction Details")
 avatar_initials = st.sidebar.text_input("Avatar Initials", value="JL", max_chars=3)
@@ -123,13 +124,18 @@ def create_mockup():
         else:
             ad_rgb = raw_img.convert("RGB")
 
+        # High-precision fit + UnsharpMask sharpening so text & logos stay razor-sharp
         ad_display = ImageOps.fit(ad_rgb, (ad_w, ad_h), method=Image.Resampling.LANCZOS)
+        if sharpness_boost > 0:
+            ad_display = ad_display.filter(
+                ImageFilter.UnsharpMask(radius=1.2, percent=sharpness_boost, threshold=2)
+            )
     else:
         ad_display = Image.new("RGB", (ad_w, ad_h), "#F5F5F7")
         ad_draw = ImageDraw.Draw(ad_display)
         ad_draw.text((ad_w // 2, ad_h // 2), "300 x 250 Ad Slot (6:5)\nUpload Image in Left Sidebar", fill="#666666", font=font_md, anchor="mm", align="center")
 
-    # 4. Authentic Flush Corner AdChoices 'i' Tab (Drawn directly onto ad corner before rounding)
+    # 4. Authentic Flush Corner AdChoices 'i' Tab
     if show_info_tag:
         ad_rgba = ad_display.convert("RGBA")
         overlay = Image.new("RGBA", (ad_w, ad_h), (0, 0, 0, 0))
@@ -138,7 +144,6 @@ def create_mockup():
         tab_w, tab_h = 46, 42
         r = 14
         if tag_position == "Top-Left":
-            # Flush top-left translucent light-grey tab with rounded bottom-right corner
             ov_draw.rounded_rectangle(
                 [0, 0, tab_w, tab_h],
                 radius=10,
@@ -147,7 +152,6 @@ def create_mockup():
             )
             ix, iy = tab_w // 2, tab_h // 2
         else:
-            # Flush top-right translucent light-grey tab with rounded bottom-left corner
             ov_draw.rounded_rectangle(
                 [ad_w - tab_w, 0, ad_w, tab_h],
                 radius=10,
@@ -156,13 +160,12 @@ def create_mockup():
             )
             ix, iy = ad_w - (tab_w // 2), tab_h // 2
 
-        # Thin cyan-blue ring + 'i' icon matching original Oppo screenshot
         ov_draw.ellipse([ix - r, iy - r, ix + r, iy + r], outline=(0, 174, 239, 255), width=3)
         ov_draw.text((ix, iy), "i", fill=(0, 174, 239, 255), font=font_info, anchor="mm")
 
         ad_display = Image.alpha_composite(ad_rgba, overlay).convert("RGB")
 
-    # Apply rounded corners to the Ad Banner so the flush tab follows the banner corner cleanly
+    # Apply rounded corners to the Ad Banner
     mask = Image.new("L", (ad_w, ad_h), 0)
     mask_draw = ImageDraw.Draw(mask)
     mask_draw.rounded_rectangle([0, 0, ad_w, ad_h], radius=20, fill=255)
@@ -190,17 +193,17 @@ def create_mockup():
     return img
 
 # --- DISPLAY & DOWNLOAD ---
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns([1.2, 1])
 
 with col1:
     st.subheader("Live Mockup Preview (HD)")
     final_img = create_mockup()
-    st.image(final_img, width=380)
+    st.image(final_img, width=420)
 
     buf = io.BytesIO()
-    final_img.save(buf, format="PNG")
+    final_img.save(buf, format="PNG", compress_level=1)
     st.download_button(
-        label="⬇️ Download Full HD Mockup (PNG)",
+        label="⬇️ Download Lossless Full HD Mockup (PNG)",
         data=buf.getvalue(),
         file_name="payment_ad_mockup_hd.png",
         mime="image/png"
@@ -211,4 +214,8 @@ with col2:
         st.subheader("Exact 300x250 Export (6:5)")
         raw_preview = ImageOps.exif_transpose(Image.open(uploaded_ad)).convert("RGB")
         exact_300 = ImageOps.fit(raw_preview, (300, 250), method=Image.Resampling.LANCZOS)
+        if sharpness_boost > 0:
+            exact_300 = exact_300.filter(
+                ImageFilter.UnsharpMask(radius=1.0, percent=sharpness_boost, threshold=2)
+            )
         st.image(exact_300, caption="300x250 px asset")
