@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import io
 
 st.set_page_config(page_title="Ad Placement Mockup Generator", layout="wide")
@@ -12,103 +12,121 @@ st.sidebar.header("1. Upload Ad Creative")
 uploaded_ad = st.sidebar.file_uploader("Upload Ad Image (Will resize to 300x250)", type=["png", "jpg", "jpeg", "webp"])
 
 st.sidebar.header("2. Edit Transaction Details")
-status_time = st.sidebar.text_input("Top Bar Clock", value="1:12")
-recipient_name = st.sidebar.text_input("Recipient Name", value="Deadpool")
-masked_number = st.sidebar.text_input("Masked Account/Phone", value="XXXXXX0670")
-amount = st.sidebar.text_input("Amount (without ₹ symbol)", value="1")
-date_time_str = st.sidebar.text_input("Transaction Date & Time", value="08 January 2026 at 01:11 PM")
+avatar_initials = st.sidebar.text_input("Avatar Initials", value="JL", max_chars=3)
+recipient_name = st.sidebar.text_area("Recipient Name", value="JUST PARKING\nPRIVATE LIMITED", height=70)
+upi_id = st.sidebar.text_input("UPI ID / Masked Number", value="paytm.d*******3175@pty")
+amount = st.sidebar.text_input("Amount (without ₹ symbol)", value="150")
+date_time_str = st.sidebar.text_input("Transaction Date & Time", value="04:32 pm on 12 Oct 2026")
 
 st.sidebar.header("3. Ad Tag Settings")
-show_info_tag = st.sidebar.checkbox("Show Info 'i' Tag on Ad", value=True)
-tag_position = st.sidebar.selectbox("Tag Position", ["Top-Right (Like Reference)", "Top-Left"])
+show_info_tag = st.sidebar.checkbox("Show Blue 'i' Info Circle", value=True)
+tag_position = st.sidebar.selectbox("Tag Position", ["Top-Left", "Top-Right"])
 
 # --- IMAGE GENERATION FUNCTION ---
 def create_mockup():
-    # Canvas dimensions (Mobile Portrait)
+    # Outer Canvas Dimensions (Matching Navaratri Reference)
     W, H = 540, 1170
-    img = Image.new("RGB", (W, H), "#1C1B20") # Dark background
+    img = Image.new("RGB", (W, H), "#121115")
     draw = ImageDraw.Draw(img)
 
-    # Try loading default scalable font, fallback to basic if unavailable
+    # Load clean scalable fonts
     try:
-        font_lg = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
-        font_md = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+        font_amt = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
+        font_name = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 23)
+        font_md = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
         font_reg = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
         font_sm = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+        font_info = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
+        font_tag = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
     except:
-        font_lg = font_md = font_reg = font_sm = ImageFont.load_default()
+        font_amt = font_name = font_md = font_reg = font_sm = font_info = font_tag = ImageFont.load_default()
 
-    # 1. Top Green Header Section
-    header_h = 285
+    # 1. Top Green Header Section (Clean outer layout without status bar)
+    header_h = 265
     draw.rectangle([0, 0, W, header_h], fill="#2E8B3C")
 
-    # Top Status Bar
-    draw.text((25, 12), status_time, fill="white", font=font_sm)
-    draw.text((W - 65, 12), "90%", fill="white", font=font_sm)
-
     # White Checkmark Circle
-    cx, cy = W // 2, 125
-    draw.ellipse([cx - 48, cy - 48, cx + 48, cy + 48], fill="#4FA35B") # Outer glow
-    draw.ellipse([cx - 36, cy - 36, cx + 36, cy + 36], fill="white")   # Inner circle
-    # Green Checkmark Tick
-    draw.line([(cx - 16, cy), (cx - 4, cy + 12), (cx + 18, cy - 12)], fill="#2E8B3C", width=6)
+    cx, cy = W // 2, 92
+    draw.ellipse([cx - 44, cy - 44, cx + 44, cy + 44], fill="#4FA35B")
+    draw.ellipse([cx - 33, cy - 33, cx + 33, cy + 33], fill="white")
+    draw.line([(cx - 14, cy), (cx - 3, cy + 11), (cx + 16, cy - 11)], fill="#2E8B3C", width=5)
 
     # Payment Successful Text
-    draw.text((W // 2, 195), "Payment Successful", fill="white", font=font_md, anchor="mm")
-    draw.text((W // 2, 225), date_time_str, fill="#E0F2E3", font=font_sm, anchor="mm")
+    draw.text((W // 2, 162), "Payment Successful", fill="white", font=font_md, anchor="mm")
+    draw.text((W // 2, 195), date_time_str, fill="#E0F2E3", font=font_reg, anchor="mm")
 
     # 2. Transaction Card
-    card_x1, card_y1, card_x2, card_y2 = 20, 265, W - 20, 520
-    draw.rounded_rectangle([card_x1, card_y1, card_x2, card_y2], radius=16, fill="#242228")
+    card_x1, card_y1, card_x2, card_y2 = 18, 232, W - 18, 522
+    draw.rounded_rectangle([card_x1, card_y1, card_x2, card_y2], radius=16, fill="#1E1D22")
 
-    # Purple Avatar Box
-    av_x1, av_y1 = 45, 295
-    draw.rounded_rectangle([av_x1, av_y1, av_x1 + 75, av_y1 + 75], radius=18, fill="#9C6ADE")
-    # Simple User Icon inside Avatar
-    draw.ellipse([av_x1 + 26, av_y1 + 16, av_x1 + 49, av_y1 + 39], outline="white", width=3)
-    draw.arc([av_x1 + 16, av_y1 + 42, av_x1 + 59, av_y1 + 72], start=180, end=360, fill="white", width=3)
+    # Yellow Rounded-Square Avatar Box with Initials
+    av_x1, av_y1 = 42, 265
+    av_size = 76
+    draw.rounded_rectangle([av_x1, av_y1, av_x1 + av_size, av_y1 + av_size], radius=18, fill="#D4B82C")
+    draw.text((av_x1 + av_size // 2, av_y1 + av_size // 2), avatar_initials.upper(), fill="white", font=font_name, anchor="mm")
 
-    # Recipient Details & Amount
-    draw.text((145, 298), recipient_name, fill="white", font=font_md)
-    draw.text((145, 330), masked_number, fill="#A09FA6", font=font_sm)
-    draw.text((145, 368), f"₹{amount}", fill="white", font=font_lg)
-    draw.text((card_x2 - 25, 378), "Split Expense", fill="#A67CE8", font=font_sm, anchor="rm")
+    # Recipient Name, UPI ID, and Amount
+    text_x = 142
+    draw.multiline_text((text_x, 265), recipient_name, fill="white", font=font_name, spacing=6)
 
-    # Divider Line & Bottom Card Actions
-    draw.line([(20, 425), (W - 20, 425)], fill="#36343B", width=2)
-    draw.line([(W // 2, 435), (W // 2, 510)], fill="#36343B", width=2)
-    
-    # Action Buttons Placeholders
-    draw.ellipse([75, 450, 119, 494], fill="#382B47")
-    draw.text((135, 472), "View Details", fill="#D6D5DB", font=font_sm, anchor="lm")
-    
-    draw.ellipse([305, 450, 349, 494], fill="#382B47")
-    draw.text((365, 472), "Share Receipt", fill="#D6D5DB", font=font_sm, anchor="lm")
+    line_count = len(recipient_name.split("\n"))
+    upi_y = 265 + (line_count * 30) + 6
+    amt_y = upi_y + 34
 
-    # 3. 300x250 Ad Banner Container (Aspect Ratio 6:5)
-    # Scaled proportionally to fit the 540px screen nicely (or exact 300x250 centered)
-    ad_w, ad_h = 480, 400 # Exact 6:5 ratio (scaled 1.6x to fit mobile width cleanly)
+    draw.text((text_x, upi_y), upi_id, fill="#B0AFB6", font=font_reg)
+    draw.text((text_x, amt_y), f"₹{amount}", fill="white", font=font_amt)
+
+    # Underlined "Split Expense"
+    split_x, split_y = card_x2 - 26, amt_y + 16
+    draw.text((split_x, split_y), "Split Expense", fill="#A67CE8", font=font_sm, anchor="rm")
+    text_w = draw.textlength("Split Expense", font=font_sm)
+    draw.line([(split_x - text_w, split_y + 10), (split_x, split_y + 10)], fill="#A67CE8", width=1)
+
+    # Card Divider Lines & Bottom Actions
+    div_y = 432
+    draw.line([(card_x1, div_y), (card_x2, div_y)], fill="#323038", width=2)
+    draw.line([(W // 2, div_y + 12), (W // 2, card_y2 - 12)], fill="#323038", width=2)
+
+    # View Details & Share Receipt Buttons
+    draw.ellipse([65, 455, 109, 499], fill="#382B47")
+    draw.rectangle([80, 468, 94, 486], outline="#A67CE8", width=2)
+    draw.text((124, 477), "View Details", fill="#E2E1E6", font=font_sm, anchor="lm")
+
+    draw.ellipse([300, 455, 344, 499], fill="#382B47")
+    draw.text((322, 477), "↗", fill="#A67CE8", font=font_md, anchor="mm")
+    draw.text((358, 477), "Share Receipt", fill="#E2E1E6", font=font_sm, anchor="lm")
+
+    # 3. 300x250 Ad Banner Container (Exact 6:5 Aspect Ratio)
+    ad_w, ad_h = 504, 420  # Exact 6:5 ratio (300x250 scaled 1.68x to fit outer card width)
     ad_x = (W - ad_w) // 2
-    ad_y = 545
+    ad_y = 542
 
     if uploaded_ad is not None:
-        ad_img = Image.open(uploaded_ad).convert("RGB")
-        # Resize/Crop to exact 300x250 first as requested, then fit slot
-        ad_300x250 = ad_img.resize((300, 250), Image.Resampling.LANCZOS)
+        raw_img = Image.open(uploaded_ad)
+        raw_img = ImageOps.exif_transpose(raw_img)
+        if raw_img.mode in ("RGBA", "P"):
+            bg = Image.new("RGB", raw_img.size, (255, 255, 255))
+            raw_img = raw_img.convert("RGBA")
+            bg.paste(raw_img, mask=raw_img.split()[3])
+            ad_rgb = bg
+        else:
+            ad_rgb = raw_img.convert("RGB")
+
+        # Resize to exact 300x250 (6:5) first, then scale smoothly into slot
+        ad_300x250 = ad_rgb.resize((300, 250), Image.Resampling.LANCZOS)
         ad_display = ad_300x250.resize((ad_w, ad_h), Image.Resampling.LANCZOS)
     else:
-        # Placeholder white ad box if no image uploaded yet
         ad_display = Image.new("RGB", (ad_w, ad_h), "#F5F5F7")
         ad_draw = ImageDraw.Draw(ad_display)
-        ad_draw.text((ad_w // 2, ad_h // 2), "300 x 250 Ad Slot\n(Upload Image on Left)", fill="#666666", font=font_md, anchor="mm", align="center")
+        ad_draw.text((ad_w // 2, ad_h // 2), "300 x 250 Ad Slot (6:5)\nUpload Image in Left Sidebar", fill="#666666", font=font_md, anchor="mm", align="center")
 
-    # Round the corners of the Ad Banner
+    # Apply subtle rounded corners to the Ad Banner
     mask = Image.new("L", (ad_w, ad_h), 0)
     mask_draw = ImageDraw.Draw(mask)
-    mask_draw.rounded_rectangle([0, 0, ad_w, ad_h], radius=18, fill=255)
+    mask_draw.rounded_rectangle([0, 0, ad_w, ad_h], radius=10, fill=255)
     img.paste(ad_display, (ad_x, ad_y), mask)
 
-    # 4. Small Circular 'i' Tag on the Ad Corner
+    # 4. Circular Blue 'i' Info Tag on Ad Corner (Kept from original setting)
     if show_info_tag:
         r = 12
         padding = 18
@@ -117,13 +135,13 @@ def create_mockup():
         else:
             ix, iy = ad_x + ad_w - padding, ad_y + padding
 
-        draw.ellipse([ix - r, iy - r, ix + r, iy + r], fill="white", outline="#4A90E2", width=2)
-        draw.text((ix, iy), "i", fill="#4A90E2", font=font_sm, anchor="mm")
+        draw.ellipse([ix - r, iy - r, ix + r, iy + r], fill="white", outline="#1DA1F2", width=2)
+        draw.text((ix, iy), "i", fill="#1DA1F2", font=font_info, anchor="mm")
 
     # 5. Carousel Dots & UPI Footer
     dot_y = ad_y + ad_h + 22
-    start_dot_x = (W // 2) - 55
-    for i in range(8):
+    start_dot_x = (W // 2) - 42
+    for i in range(6):
         if i == 0:
             draw.rounded_rectangle([start_dot_x, dot_y - 4, start_dot_x + 22, dot_y + 4], radius=4, fill="white")
             start_dot_x += 30
@@ -131,12 +149,13 @@ def create_mockup():
             draw.ellipse([start_dot_x, dot_y - 4, start_dot_x + 8, dot_y + 4], fill="#5E5C64")
             start_dot_x += 16
 
-    draw.text((W // 2, dot_y + 45), "POWERED BY", fill="#88868E", font=font_sm, anchor="mm")
-    draw.text((W // 2, dot_y + 68), "UPI", fill="#D6D5DB", font=font_md, anchor="mm")
+    draw.text((W // 2, dot_y + 46), "POWERED BY", fill="#88868E", font=font_tag, anchor="mm")
+    draw.text((W // 2, dot_y + 66), "UPI", fill="#D6D5DB", font=font_md, anchor="mm")
 
-    # Bottom Done Bar
-    draw.rectangle([0, H - 85, W, H], fill="#141317")
-    draw.text((W // 2, H - 45), "Done", fill="#9C6ADE", font=font_md, anchor="mm")
+    # Bottom DONE Bar (Matching Navaratri Reference)
+    draw.rectangle([0, H - 82, W, H], fill="#1C1B20")
+    draw.text((W // 2, H - 44), "DONE", fill="#9C6ADE", font=font_md, anchor="mm")
+    draw.rounded_rectangle([W // 2 - 90, H - 14, W // 2 + 90, H - 9], radius=3, fill="white")
 
     return img
 
@@ -148,7 +167,6 @@ with col1:
     final_img = create_mockup()
     st.image(final_img, width=360)
 
-    # Convert to downloadable bytes
     buf = io.BytesIO()
     final_img.save(buf, format="PNG")
     st.download_button(
@@ -161,5 +179,5 @@ with col1:
 with col2:
     if uploaded_ad is not None:
         st.subheader("Resized 300x250 Ad Unit (6:5)")
-        raw_ad = Image.open(uploaded_ad).resize((300, 250))
-        st.image(raw_ad, caption="Exact 300x250 px asset")
+        raw_preview = ImageOps.exif_transpose(Image.open(uploaded_ad)).convert("RGB").resize((300, 250))
+        st.image(raw_preview, caption="Exact 300x250 px asset")
