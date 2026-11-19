@@ -32,7 +32,7 @@ date_time_str = st.sidebar.text_input("Transaction Date & Time", value="04:32 pm
 
 st.sidebar.header("4. Ad Tag Settings")
 show_info_tag = st.sidebar.checkbox("Show Ad Tag [ (i) ⋮ ]", value=True)
-tag_position = st.sidebar.selectbox("Tag Corner", ["Top-Left", "Top-Right"])
+tag_position = st.sidebar.selectbox("Tag Corner", ["Top-Right (Like Flipkart)", "Top-Left"])
 
 # --- HELPER FOR GUARANTEED CRISP FONTS ---
 def get_font(size, bold=False):
@@ -50,63 +50,63 @@ def get_font(size, bold=False):
     except:
         return ImageFont.load_default()
 
-# --- DRAW PHOTOREALISTIC [ (i) ⋮ ] ADCHOICES TAG (4X SUPERSAMPLED FOR ZERO JAGGED EDGES) ---
-def draw_native_ad_tag(base_img, ad_w, ad_h, position="Top-Left"):
-    ss = 4  # 4x supersampling so curves and dots look 100% native
-    tag_w = max(32, int(ad_w * 0.105))
-    tag_h = max(16, int(ad_h * 0.062))
-    margin_x = max(2, int(ad_w * 0.012))
-    margin_y = max(2, int(ad_h * 0.014))
+# --- EXACT FLUSH GOOGLE/FLIPKART ADCHOICES CORNER TAB (4X SUPERSAMPLED) ---
+def draw_native_ad_tag(base_img, ad_w, ad_h, position="Top-Right (Like Flipkart)"):
+    ss = 4  # 4x supersampling for completely smooth anti-aliased curves
+    # Exact compact proportions from Flipkart screenshot
+    tag_w = max(26, int(ad_w * 0.084))
+    tag_h = max(14, int(ad_h * 0.052))
 
-    # Render tag at 4x resolution
     hi_w, hi_h = tag_w * ss, tag_h * ss
-    tag_hi = Image.new("RGBA", (hi_w + 16, hi_h + 16), (0, 0, 0, 0))
+    tag_hi = Image.new("RGBA", (hi_w, hi_h), (0, 0, 0, 0))
     td = ImageDraw.Draw(tag_hi)
 
-    # Subtle ambient shadow behind the white tab (just like real Android WebView ad rendering)
-    shadow = Image.new("RGBA", (hi_w + 16, hi_h + 16), (0, 0, 0, 0))
-    sd = ImageDraw.Draw(shadow)
-    sd.rounded_rectangle([8, 9, 8 + hi_w, 9 + hi_h], radius=int(hi_h * 0.22), fill=(0, 0, 0, 48))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=3))
-    tag_hi = Image.alpha_composite(tag_hi, shadow)
-    td = ImageDraw.Draw(tag_hi)
+    is_left = "Left" in position
+    inner_radius = int(hi_h * 0.24)
 
-    # Crisp white semi-opaque pill tab
+    # Flush corner shape: flat against top & outer side, rounded only on inner bottom corner
+    # corners tuple = (top_left, top_right, bottom_right, bottom_left)
+    corner_flags = (False, False, True, False) if is_left else (False, False, False, True)
+
+    # Semi-translucent off-white/cool-grey backing matching real Google AdSense/AdMob slot
     td.rounded_rectangle(
-        [8, 8, 8 + hi_w, 8 + hi_h],
-        radius=int(hi_h * 0.22),
-        fill=(255, 255, 255, 245)
+        [0, 0, hi_w - 1, hi_h - 1],
+        radius=inner_radius,
+        corners=corner_flags,
+        fill=(248, 249, 251, 232),
+        outline=(218, 222, 228, 180),
+        width=max(2, ss // 2)
     )
 
-    # Left side: Cyan-blue circle with 'i' (#00AEEF)
-    cx = 8 + int(hi_w * 0.34)
-    cy = 8 + (hi_h // 2)
-    r = int(hi_h * 0.34)
-    stroke = max(4, int(hi_h * 0.075))
-    td.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(0, 174, 239, 255), width=stroke)
+    # Left element inside tab: Google/AdChoices Blue circle + 'i' (#1A90D9 / #0095E8)
+    blue_col = (0, 148, 224, 255)
+    cx = int(hi_w * 0.36)
+    cy = hi_h // 2
+    r = int(hi_h * 0.33)
+    stroke = max(3, int(hi_h * 0.072))
+    td.ellipse([cx - r, cy - r, cx + r, cy + r], outline=blue_col, width=stroke)
 
-    # Draw geometric 'i' inside circle (dot + stem) so it's crisp at every pixel size
+    # Geometric 'i' inside circle
     dot_r = max(2, int(r * 0.16))
-    td.ellipse([cx - dot_r, cy - int(r * 0.48) - dot_r, cx + dot_r, cy - int(r * 0.48) + dot_r], fill=(0, 174, 239, 255))
+    td.ellipse([cx - dot_r, cy - int(r * 0.46) - dot_r, cx + dot_r, cy - int(r * 0.46) + dot_r], fill=blue_col)
     stem_w = max(2, int(r * 0.15))
-    td.rectangle([cx - stem_w, cy - int(r * 0.15), cx + stem_w, cy + int(r * 0.48)], fill=(0, 174, 239, 255))
+    td.rectangle([cx - stem_w, cy - int(r * 0.14), cx + stem_w, cy + int(r * 0.48)], fill=blue_col)
 
-    # Right side: Three vertical dark-grey dots (⋮)
-    dx = 8 + int(hi_w * 0.77)
+    # Right element inside tab: Three compact vertical dots (⋮) in slate-blue/grey
+    dot_col = (58, 108, 148, 245)
+    dx = int(hi_w * 0.76)
     dot_radius = max(2, int(hi_h * 0.068))
     spacing = int(hi_h * 0.22)
     for offset in (-spacing, 0, spacing):
         dy = cy + offset
-        td.ellipse([dx - dot_radius, dy - dot_radius, dx + dot_radius, dy + dot_radius], fill=(75, 80, 88, 255))
+        td.ellipse([dx - dot_radius, dy - dot_radius, dx + dot_radius, dy + dot_radius], fill=dot_col)
 
     # Downsample 4x -> 1x with LANCZOS anti-aliasing
-    final_tag = tag_hi.resize((tag_w + 4, tag_h + 4), Image.Resampling.LANCZOS)
+    final_tag = tag_hi.resize((tag_w, tag_h), Image.Resampling.LANCZOS)
 
     ad_rgba = base_img.convert("RGBA")
-    if position == "Top-Left":
-        paste_x, paste_y = margin_x, margin_y
-    else:
-        paste_x, paste_y = ad_w - tag_w - margin_x - 4, margin_y
+    paste_x = 0 if is_left else (ad_w - tag_w)
+    paste_y = 0  # Flush against the very top edge of the ad banner!
 
     ad_rgba.paste(final_tag, (paste_x, paste_y), final_tag)
     return ad_rgba.convert("RGB")
@@ -231,63 +231,4 @@ def create_mockup():
         ov_cta = ImageDraw.Draw(ad_display)
         btn_x1, btn_y1 = int(ad_w * 0.048), int(ad_h * 0.552)
         btn_x2, btn_y2 = int(ad_w * 0.258), int(ad_h * 0.632)
-        ov_cta.rounded_rectangle([btn_x1, btn_y1, btn_x2, btn_y2], radius=int((btn_y2 - btn_y1) // 2), fill="#FFFFFF")
-        cta_font = get_font(int(ad_h * 0.032), bold=True)
-        ov_cta.text(((btn_x1 + btn_x2) // 2, (btn_y1 + btn_y2) // 2), "Register now", fill="#D9251D", font=cta_font, anchor="mm")
-
-        tnc_font = get_font(int(ad_h * 0.022), bold=False)
-        ov_cta.text((int(ad_w * 0.052), int(ad_h * 0.955)), "T&C Apply*", fill="#F0F4F8", font=tnc_font, anchor="lm")
-
-    # 4. Exact [ (i) ⋮ ] Ad Tag on Top-Left Corner (matching Flipkart screenshot style)
-    if show_info_tag:
-        ad_display = draw_native_ad_tag(ad_display, ad_w, ad_h, position=tag_position)
-
-    # Apply rounded corners to the Ad Banner
-    mask = Image.new("L", (ad_w, ad_h), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.rounded_rectangle([0, 0, ad_w, ad_h], radius=max(6, int(10 * s)), fill=255)
-    img.paste(ad_display, (ad_x, ad_y), mask)
-
-    # 5. Carousel Dots & UPI Footer
-    dot_y = ad_y + ad_h + int(22 * s)
-    start_dot_x = (W // 2) - int(42 * s)
-    for i in range(6):
-        if i == 0:
-            draw.rounded_rectangle([start_dot_x, dot_y - int(4 * s), start_dot_x + int(22 * s), dot_y + int(4 * s)], radius=int(4 * s), fill="white")
-            start_dot_x += int(30 * s)
-        else:
-            draw.ellipse([start_dot_x, dot_y - int(4 * s), start_dot_x + int(8 * s), dot_y + int(4 * s)], fill="#5E5C64")
-            start_dot_x += int(16 * s)
-
-    draw.text((W // 2, dot_y + int(46 * s)), "POWERED BY", fill="#88868E", font=font_tag, anchor="mm")
-    draw.text((W // 2, dot_y + int(66 * s)), "UPI", fill="#D6D5DB", font=font_md, anchor="mm")
-
-    # Bottom DONE Bar
-    draw.rectangle([0, H - int(82 * s), W, H], fill="#1C1B20")
-    draw.text((W // 2, H - int(44 * s)), "DONE", fill="#9C6ADE", font=font_md, anchor="mm")
-    draw.rounded_rectangle([W // 2 - int(90 * s), H - int(14 * s), W // 2 + int(90 * s), H - int(9 * s)], radius=int(3 * s), fill="white")
-
-    return img
-
-# --- DISPLAY & DOWNLOAD ---
-col1, col2 = st.columns([1.2, 1])
-
-with col1:
-    st.subheader("Live Mockup Preview")
-    final_img = create_mockup()
-    st.image(final_img)
-
-    buf = io.BytesIO()
-    final_img.save(buf, format="PNG", compress_level=0)
-    st.download_button(
-        label="⬇️ Download Lossless Mockup (PNG)",
-        data=buf.getvalue(),
-        file_name="payment_ad_mockup.png",
-        mime="image/png"
-    )
-
-with col2:
-    if uploaded_ad is not None:
-        st.subheader("Original Uploaded Ad (1:1)")
-        raw_preview = ImageOps.exif_transpose(Image.open(uploaded_ad)).convert("RGB")
-        st.image(raw_preview, caption=f"Native size: {raw_preview.width}x{raw_preview.height} px")
+        ov_cta.rounded_rectangle([btn_x1, btn_y1, btn_x2, btn
