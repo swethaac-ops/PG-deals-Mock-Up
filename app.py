@@ -19,8 +19,8 @@ amount = st.sidebar.text_input("Amount (without ₹ symbol)", value="150")
 date_time_str = st.sidebar.text_input("Transaction Date & Time", value="04:32 pm on 12 Oct 2026")
 
 st.sidebar.header("3. Ad Tag Settings")
-show_info_tag = st.sidebar.checkbox("Show Blue 'i' Info Circle", value=True)
-tag_position = st.sidebar.selectbox("Tag Position", ["Top-Left", "Top-Right"])
+show_info_tag = st.sidebar.checkbox("Show Ad Info 'i' Tag", value=True)
+tag_position = st.sidebar.selectbox("Tag Corner", ["Top-Left", "Top-Right"])
 
 # --- HELPER FOR GUARANTEED CRISP FONTS ---
 def get_font(size, bold=False):
@@ -49,7 +49,7 @@ def create_mockup():
     font_md = get_font(40, bold=True)
     font_reg = get_font(36, bold=False)
     font_sm = get_font(30, bold=False)
-    font_info = get_font(28, bold=True)
+    font_info = get_font(22, bold=True)
     font_tag = get_font(22, bold=True)
 
     # 1. Top Green Header Section
@@ -123,30 +123,50 @@ def create_mockup():
         else:
             ad_rgb = raw_img.convert("RGB")
 
-        # Single-pass high-res fit so your creative stays 100% sharp
         ad_display = ImageOps.fit(ad_rgb, (ad_w, ad_h), method=Image.Resampling.LANCZOS)
     else:
         ad_display = Image.new("RGB", (ad_w, ad_h), "#F5F5F7")
         ad_draw = ImageDraw.Draw(ad_display)
         ad_draw.text((ad_w // 2, ad_h // 2), "300 x 250 Ad Slot (6:5)\nUpload Image in Left Sidebar", fill="#666666", font=font_md, anchor="mm", align="center")
 
-    # Rounded corners for Ad Banner
+    # 4. Authentic Flush Corner AdChoices 'i' Tab (Drawn directly onto ad corner before rounding)
+    if show_info_tag:
+        ad_rgba = ad_display.convert("RGBA")
+        overlay = Image.new("RGBA", (ad_w, ad_h), (0, 0, 0, 0))
+        ov_draw = ImageDraw.Draw(overlay)
+
+        tab_w, tab_h = 46, 42
+        r = 14
+        if tag_position == "Top-Left":
+            # Flush top-left translucent light-grey tab with rounded bottom-right corner
+            ov_draw.rounded_rectangle(
+                [0, 0, tab_w, tab_h],
+                radius=10,
+                corners=(False, False, True, False),
+                fill=(242, 242, 245, 225)
+            )
+            ix, iy = tab_w // 2, tab_h // 2
+        else:
+            # Flush top-right translucent light-grey tab with rounded bottom-left corner
+            ov_draw.rounded_rectangle(
+                [ad_w - tab_w, 0, ad_w, tab_h],
+                radius=10,
+                corners=(False, False, False, True),
+                fill=(242, 242, 245, 225)
+            )
+            ix, iy = ad_w - (tab_w // 2), tab_h // 2
+
+        # Thin cyan-blue ring + 'i' icon matching original Oppo screenshot
+        ov_draw.ellipse([ix - r, iy - r, ix + r, iy + r], outline=(0, 174, 239, 255), width=3)
+        ov_draw.text((ix, iy), "i", fill=(0, 174, 239, 255), font=font_info, anchor="mm")
+
+        ad_display = Image.alpha_composite(ad_rgba, overlay).convert("RGB")
+
+    # Apply rounded corners to the Ad Banner so the flush tab follows the banner corner cleanly
     mask = Image.new("L", (ad_w, ad_h), 0)
     mask_draw = ImageDraw.Draw(mask)
     mask_draw.rounded_rectangle([0, 0, ad_w, ad_h], radius=20, fill=255)
     img.paste(ad_display, (ad_x, ad_y), mask)
-
-    # 4. Circular Blue 'i' Info Tag on Ad Corner
-    if show_info_tag:
-        r = 24
-        padding = 36
-        if tag_position == "Top-Left":
-            ix, iy = ad_x + padding, ad_y + padding
-        else:
-            ix, iy = ad_x + ad_w - padding, ad_y + padding
-
-        draw.ellipse([ix - r, iy - r, ix + r, iy + r], fill="white", outline="#1DA1F2", width=4)
-        draw.text((ix, iy), "i", fill="#1DA1F2", font=font_info, anchor="mm")
 
     # 5. Carousel Dots & UPI Footer
     dot_y = ad_y + ad_h + 44
