@@ -52,8 +52,7 @@ def get_font(size, bold=False):
 
 # --- EXACT FLUSH GOOGLE/FLIPKART ADCHOICES CORNER TAB (4X SUPERSAMPLED) ---
 def draw_native_ad_tag(base_img, ad_w, ad_h, position="Top-Right (Like Flipkart)"):
-    ss = 4  # 4x supersampling for completely smooth anti-aliased curves
-    # Exact compact proportions from Flipkart screenshot
+    ss = 4
     tag_w = max(26, int(ad_w * 0.084))
     tag_h = max(14, int(ad_h * 0.052))
 
@@ -63,12 +62,8 @@ def draw_native_ad_tag(base_img, ad_w, ad_h, position="Top-Right (Like Flipkart)
 
     is_left = "Left" in position
     inner_radius = int(hi_h * 0.24)
-
-    # Flush corner shape: flat against top & outer side, rounded only on inner bottom corner
-    # corners tuple = (top_left, top_right, bottom_right, bottom_left)
     corner_flags = (False, False, True, False) if is_left else (False, False, False, True)
 
-    # Semi-translucent off-white/cool-grey backing matching real Google AdSense/AdMob slot
     td.rounded_rectangle(
         [0, 0, hi_w - 1, hi_h - 1],
         radius=inner_radius,
@@ -78,7 +73,6 @@ def draw_native_ad_tag(base_img, ad_w, ad_h, position="Top-Right (Like Flipkart)
         width=max(2, ss // 2)
     )
 
-    # Left element inside tab: Google/AdChoices Blue circle + 'i' (#1A90D9 / #0095E8)
     blue_col = (0, 148, 224, 255)
     cx = int(hi_w * 0.36)
     cy = hi_h // 2
@@ -86,13 +80,11 @@ def draw_native_ad_tag(base_img, ad_w, ad_h, position="Top-Right (Like Flipkart)
     stroke = max(3, int(hi_h * 0.072))
     td.ellipse([cx - r, cy - r, cx + r, cy + r], outline=blue_col, width=stroke)
 
-    # Geometric 'i' inside circle
     dot_r = max(2, int(r * 0.16))
     td.ellipse([cx - dot_r, cy - int(r * 0.46) - dot_r, cx + dot_r, cy - int(r * 0.46) + dot_r], fill=blue_col)
     stem_w = max(2, int(r * 0.15))
     td.rectangle([cx - stem_w, cy - int(r * 0.14), cx + stem_w, cy + int(r * 0.48)], fill=blue_col)
 
-    # Right element inside tab: Three compact vertical dots (⋮) in slate-blue/grey
     dot_col = (58, 108, 148, 245)
     dx = int(hi_w * 0.76)
     dot_radius = max(2, int(hi_h * 0.068))
@@ -101,12 +93,11 @@ def draw_native_ad_tag(base_img, ad_w, ad_h, position="Top-Right (Like Flipkart)
         dy = cy + offset
         td.ellipse([dx - dot_radius, dy - dot_radius, dx + dot_radius, dy + dot_radius], fill=dot_col)
 
-    # Downsample 4x -> 1x with LANCZOS anti-aliasing
     final_tag = tag_hi.resize((tag_w, tag_h), Image.Resampling.LANCZOS)
 
     ad_rgba = base_img.convert("RGBA")
     paste_x = 0 if is_left else (ad_w - tag_w)
-    paste_y = 0  # Flush against the very top edge of the ad banner!
+    paste_y = 0
 
     ad_rgba.paste(final_tag, (paste_x, paste_y), final_tag)
     return ad_rgba.convert("RGB")
@@ -229,6 +220,68 @@ def create_mockup():
     # Optional Vector CTA & T&C Overlay
     if fix_airtel_cta and uploaded_ad is not None:
         ov_cta = ImageDraw.Draw(ad_display)
-        btn_x1, btn_y1 = int(ad_w * 0.048), int(ad_h * 0.552)
-        btn_x2, btn_y2 = int(ad_w * 0.258), int(ad_h * 0.632)
-        ov_cta.rounded_rectangle([btn_x1, btn_y1, btn_x2, btn
+        btn_x1 = int(ad_w * 0.048)
+        btn_y1 = int(ad_h * 0.552)
+        btn_x2 = int(ad_w * 0.258)
+        btn_y2 = int(ad_h * 0.632)
+        btn_r = int((btn_y2 - btn_y1) // 2)
+        ov_cta.rounded_rectangle([btn_x1, btn_y1, btn_x2, btn_y2], radius=btn_r, fill="#FFFFFF")
+        cta_font = get_font(int(ad_h * 0.032), bold=True)
+        ov_cta.text(((btn_x1 + btn_x2) // 2, (btn_y1 + btn_y2) // 2), "Register now", fill="#D9251D", font=cta_font, anchor="mm")
+
+        tnc_font = get_font(int(ad_h * 0.022), bold=False)
+        ov_cta.text((int(ad_w * 0.052), int(ad_h * 0.955)), "T&C Apply*", fill="#F0F4F8", font=tnc_font, anchor="lm")
+
+    # 4. Exact Flush AdChoices Tab (matching Flipkart screenshot)
+    if show_info_tag:
+        ad_display = draw_native_ad_tag(ad_display, ad_w, ad_h, position=tag_position)
+
+    # Apply rounded corners to the Ad Banner
+    mask = Image.new("L", (ad_w, ad_h), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle([0, 0, ad_w, ad_h], radius=max(6, int(10 * s)), fill=255)
+    img.paste(ad_display, (ad_x, ad_y), mask)
+
+    # 5. Carousel Dots & UPI Footer
+    dot_y = ad_y + ad_h + int(22 * s)
+    start_dot_x = (W // 2) - int(42 * s)
+    for i in range(6):
+        if i == 0:
+            draw.rounded_rectangle([start_dot_x, dot_y - int(4 * s), start_dot_x + int(22 * s), dot_y + int(4 * s)], radius=int(4 * s), fill="white")
+            start_dot_x += int(30 * s)
+        else:
+            draw.ellipse([start_dot_x, dot_y - int(4 * s), start_dot_x + int(8 * s), dot_y + int(4 * s)], fill="#5E5C64")
+            start_dot_x += int(16 * s)
+
+    draw.text((W // 2, dot_y + int(46 * s)), "POWERED BY", fill="#88868E", font=font_tag, anchor="mm")
+    draw.text((W // 2, dot_y + int(66 * s)), "UPI", fill="#D6D5DB", font=font_md, anchor="mm")
+
+    # Bottom DONE Bar
+    draw.rectangle([0, H - int(82 * s), W, H], fill="#1C1B20")
+    draw.text((W // 2, H - int(44 * s)), "DONE", fill="#9C6ADE", font=font_md, anchor="mm")
+    draw.rounded_rectangle([W // 2 - int(90 * s), H - int(14 * s), W // 2 + int(90 * s), H - int(9 * s)], radius=int(3 * s), fill="white")
+
+    return img
+
+# --- DISPLAY & DOWNLOAD ---
+col1, col2 = st.columns([1.2, 1])
+
+with col1:
+    st.subheader("Live Mockup Preview")
+    final_img = create_mockup()
+    st.image(final_img)
+
+    buf = io.BytesIO()
+    final_img.save(buf, format="PNG", compress_level=0)
+    st.download_button(
+        label="⬇️ Download Lossless Mockup (PNG)",
+        data=buf.getvalue(),
+        file_name="payment_ad_mockup.png",
+        mime="image/png"
+    )
+
+with col2:
+    if uploaded_ad is not None:
+        st.subheader("Original Uploaded Ad (1:1)")
+        raw_preview = ImageOps.exif_transpose(Image.open(uploaded_ad)).convert("RGB")
+        st.image(raw_preview, caption=f"Native size: {raw_preview.width}x{raw_preview.height} px")
